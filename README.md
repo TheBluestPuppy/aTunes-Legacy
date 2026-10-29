@@ -12,10 +12,8 @@ Step back into the golden age of digital media management! **aTunes Legacy** com
 
 ## 🌟 Key Features & Functions
 
-### 1. 🎨 Multi-Theme Engine & Classic iOS Settings
-* **4 Distinct Themes**: Switch between **Legacy Light** (iTunes 11 silver metallic), **Legacy Dark** (sleek dark retro), **New Light** (modern Apple Music aesthetic), and **New Dark** (dark mode Apple Music).
-* **Classic iOS Settings Redesign**: Modeled after vintage iOS 6 settings with grouped rounded list cells, icons, blue chevrons, and smooth toggle switches.
-* **Theme-Aware Input Styling**: Text boxes automatically adapt their text color (black on light themes, white on dark themes) for perfect contrast.
+### 1. 🎨 Classic iOS Look
+* **Classic iOS Design**: Modeled after vintage iOS 6 settings with grouped rounded list cells, icons, blue chevrons, and smooth toggle switches.
 
 ### 2. 🎛️ 3D Cover Flow (Landscape Mode)
 * **Immersive Rotation**: Rotate your device into landscape orientation to instantly launch **Cover Flow**.
