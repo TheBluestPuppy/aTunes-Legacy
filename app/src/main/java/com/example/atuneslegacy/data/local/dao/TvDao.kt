@@ -57,4 +57,10 @@ interface TvDao {
         WHERE showTitle = :oldShowTitle
     """)
     suspend fun updateTvEpisodesShowTitle(oldShowTitle: String, newShowTitle: String)
+
+    @Query("DELETE FROM tv_shows")
+    suspend fun deleteAllTvShows()
+
+    @Query("DELETE FROM tv_episodes")
+    suspend fun deleteAllTvEpisodes()
 }

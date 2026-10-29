@@ -11,19 +11,19 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.Tv
+import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
@@ -46,14 +46,24 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
-import com.example.atuneslegacy.data.local.entity.AlbumEntity
-import com.example.atuneslegacy.data.local.entity.PlaylistEntity
+import com.example.atuneslegacy.data.local.entity.MovieEntity
 import com.example.atuneslegacy.data.local.entity.SongEntity
+import com.example.atuneslegacy.data.local.entity.TvEpisodeEntity
 import com.example.atuneslegacy.ui.navigation.MainTab
 import com.example.atuneslegacy.ui.navigation.MusicSubTab
 import com.example.atuneslegacy.ui.viewmodel.MainViewModel
 import kotlin.math.abs
 import kotlin.math.roundToInt
+
+data class CoverFlowModelItem(
+    val id: String,
+    val title: String,
+    val subtitle: String,
+    val artworkUri: String,
+    val isVertical: Boolean = false,
+    val songsOrEpisodes: List<Any> = emptyList(),
+    val action: (() -> Unit)? = null
+)
 
 @Composable
 fun CoverFlowScreen(
@@ -65,27 +75,31 @@ fun CoverFlowScreen(
     val songs by viewModel.allSongs.collectAsState()
     val albums by viewModel.allAlbums.collectAsState()
     val playlists by viewModel.allPlaylists.collectAsState()
+    val tvShows by viewModel.allTvShows.collectAsState()
+    val movies by viewModel.allMovies.collectAsState()
+    val tvEpisodes by viewModel.mediaRepository.getAllTvEpisodes().collectAsState(initial = emptyList())
+    val podcasts by viewModel.allPodcastShows.collectAsState()
+    val podcastEpisodes by viewModel.mediaRepository.getAllPodcastEpisodes().collectAsState(initial = emptyList())
+    val audiobooks by viewModel.allAudiobooks.collectAsState()
 
     var selectedItemIndex by remember(currentTab, musicSubTab) { mutableStateOf(0) }
     var dragOffset by remember { mutableFloatStateOf(0f) }
-    var flippedItemIndex by remember<androidx.compose.runtime.MutableState<Int?>> { mutableStateOf(null) }
+    var flippedItemIndex by remember { mutableStateOf<Int?>(null) }
 
-    // Determine items based on current tab
-    data class CoverItem(val id: String, val title: String, val subtitle: String, val artworkUri: String, val songs: List<SongEntity>)
-
-    val items = remember(currentTab, musicSubTab, songs, albums, playlists) {
+    val items = remember(currentTab, musicSubTab, songs, albums, playlists, tvShows, movies, tvEpisodes, podcasts, podcastEpisodes, audiobooks) {
         when (currentTab) {
             MainTab.MUSIC -> {
                 when (musicSubTab) {
                     MusicSubTab.SONGS, MusicSubTab.ALBUMS, MusicSubTab.GENRES -> {
                         albums.map { album ->
                             val albSongs = songs.filter { it.albumTitle.equals(album.title, ignoreCase = true) }
-                            CoverItem(
+                            CoverFlowModelItem(
                                 id = "album_${album.id}",
                                 title = album.title,
                                 subtitle = album.albumArtist,
                                 artworkUri = album.albumCoverUri,
-                                songs = albSongs.ifEmpty { songs }
+                                isVertical = false,
+                                songsOrEpisodes = albSongs.ifEmpty { songs }
                             )
                         }
                     }
@@ -94,50 +108,94 @@ fun CoverFlowScreen(
                         artists.map { artist ->
                             val artSongs = songs.filter { it.artist.equals(artist, ignoreCase = true) }
                             val firstAlbum = artSongs.minByOrNull { it.year }
-                            CoverItem(
+                            CoverFlowModelItem(
                                 id = "artist_$artist",
                                 title = artist,
                                 subtitle = "${artSongs.size} Songs",
                                 artworkUri = firstAlbum?.artworkUri ?: "",
-                                songs = artSongs.sortedBy { it.title }
+                                isVertical = false,
+                                songsOrEpisodes = artSongs.sortedBy { it.title }
                             )
                         }
                     }
                     MusicSubTab.PLAYLISTS -> {
                         playlists.map { pl ->
-                            CoverItem(
+                            CoverFlowModelItem(
                                 id = "playlist_${pl.id}",
                                 title = pl.title,
                                 subtitle = "Playlist",
                                 artworkUri = "",
-                                songs = songs
+                                isVertical = false,
+                                songsOrEpisodes = songs
                             )
                         }
                     }
                     MusicSubTab.MUSIC_VIDEOS -> {
                         songs.filter { it.isMusicVideo }.map { video ->
-                            CoverItem(
+                            CoverFlowModelItem(
                                 id = "video_${video.id}",
                                 title = video.title,
                                 subtitle = video.artist,
                                 artworkUri = video.artworkUri,
-                                songs = listOf(video)
+                                isVertical = true,
+                                songsOrEpisodes = listOf(video)
                             )
                         }
                     }
                 }
             }
-            else -> {
-                albums.map { album ->
-                    CoverItem(
-                        id = "album_${album.id}",
-                        title = album.title,
-                        subtitle = album.albumArtist,
-                        artworkUri = album.albumCoverUri,
-                        songs = songs
+            MainTab.TV_SHOWS -> {
+                tvShows.map { show ->
+                    val showEps = tvEpisodes.filter { it.showTitle.equals(show.title, ignoreCase = true) }
+                    CoverFlowModelItem(
+                        id = "tv_${show.id}",
+                        title = show.title,
+                        subtitle = "${showEps.size} Episodes • ${show.releaseYear}",
+                        artworkUri = show.logoThumbnailUri,
+                        isVertical = true, // Vertical cover for TV Shows
+                        songsOrEpisodes = showEps
                     )
                 }
             }
+            MainTab.MOVIES -> {
+                movies.map { movie ->
+                    CoverFlowModelItem(
+                        id = "movie_${movie.id}",
+                        title = movie.title,
+                        subtitle = "${movie.releaseYear} • ${movie.parentalRating}",
+                        artworkUri = movie.thumbnailUri,
+                        isVertical = true, // Vertical cover for Movies
+                        songsOrEpisodes = listOf(movie),
+                        action = { viewModel.playMovie(movie) }
+                    )
+                }
+            }
+            MainTab.PODCASTS -> {
+                podcasts.map { show ->
+                    CoverFlowModelItem(
+                        id = "podcast_${show.id}",
+                        title = show.title,
+                        subtitle = show.creatorHost,
+                        artworkUri = show.logoThumbnailUri,
+                        isVertical = true,
+                        songsOrEpisodes = podcastEpisodes.filter { it.podcastName.equals(show.title, ignoreCase = true) }
+                    )
+                }
+            }
+            MainTab.AUDIOBOOKS -> {
+                audiobooks.map { book ->
+                    CoverFlowModelItem(
+                        id = "book_${book.id}",
+                        title = book.title,
+                        subtitle = book.author,
+                        artworkUri = book.portraitCoverUri,
+                        isVertical = true,
+                        songsOrEpisodes = emptyList(),
+                        action = { viewModel.playAudiobook(book) }
+                    )
+                }
+            }
+            else -> emptyList()
         }
     }
 
@@ -149,7 +207,7 @@ fun CoverFlowScreen(
                 if (items.isNotEmpty()) {
                     detectHorizontalDragGestures(
                         onDragEnd = {
-                            val targetIndex = (selectedItemIndex - (dragOffset / 120f).roundToInt()).coerceIn(0, items.size - 1)
+                            val targetIndex = (selectedItemIndex - (dragOffset / 140f).roundToInt()).coerceIn(0, items.size - 1)
                             selectedItemIndex = targetIndex
                             dragOffset = 0f
                             flippedItemIndex = null
@@ -163,46 +221,48 @@ fun CoverFlowScreen(
         contentAlignment = Alignment.Center
     ) {
         if (items.isEmpty()) {
-            Text("No Media for Cover Flow", color = Color.Gray, fontSize = 16.sp)
+            Text("No Media Available for Cover Flow", color = Color.Gray, fontSize = 16.sp)
         } else {
-            val activeIndex = (selectedItemIndex - (dragOffset / 120f).roundToInt()).coerceIn(0, items.size - 1)
+            val activeIndex = (selectedItemIndex - (dragOffset / 140f).roundToInt()).coerceIn(0, items.size - 1)
 
-            // Render 3D Perspective Cover Flow Row
+            // Centered Smooth 3D Perspective Cover Flow Row
             Box(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
             ) {
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy((-60).dp),
+                    horizontalArrangement = Arrangement.spacedBy((-70).dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     items.forEachIndexed { index, item ->
                         val distance = index - activeIndex
                         val isCenter = distance == 0
-                        val rotationY = (distance * -25f).coerceIn(-60f, 60f)
-                        val scale = if (isCenter) 1.1f else 0.8f
+                        val rotationY = (distance * -28f).coerceIn(-65f, 65f)
+                        val scale = if (isCenter) 1.15f else 0.8f
                         val alpha = if (abs(distance) > 3) 0f else 1f
 
                         val isFlipped = flippedItemIndex == index
-
                         val animatedRotation by animateFloatAsState(targetValue = if (isFlipped) 180f else rotationY, label = "rotation")
+
+                        val cardWidth = if (item.isVertical) 160.dp else 220.dp
+                        val cardHeight = if (item.isVertical) 230.dp else 220.dp
 
                         Box(
                             modifier = Modifier
-                                .size(220.dp)
+                                .size(width = cardWidth, height = cardHeight)
                                 .graphicsLayer {
                                     this.rotationY = animatedRotation
-                                    cameraDistance = 12f * density
+                                    cameraDistance = 14f * density
                                     scaleX = scale
                                     scaleY = scale
                                     this.alpha = alpha
                                 }
                                 .clickable {
                                     if (isCenter) {
-                                        if (flippedItemIndex == index) {
-                                            flippedItemIndex = null
-                                        } else {
-                                            flippedItemIndex = index
+                                        if (item.action != null) {
+                                            item.action.invoke()
+                                        } else if (item.songsOrEpisodes.isNotEmpty()) {
+                                            flippedItemIndex = if (flippedItemIndex == index) null else index
                                         }
                                     } else {
                                         selectedItemIndex = index
@@ -212,7 +272,7 @@ fun CoverFlowScreen(
                             contentAlignment = Alignment.Center
                         ) {
                             if (animatedRotation > 90f && animatedRotation < 270f) {
-                                // Back of Cover: Tracklist
+                                // Back of Cover: Tracklist / Episodes / Details
                                 Box(
                                     modifier = Modifier
                                         .fillMaxSize()
@@ -228,9 +288,9 @@ fun CoverFlowScreen(
                                             horizontalArrangement = Arrangement.SpaceBetween,
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
-                                            Text(text = item.title, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1)
+                                            Text(text = item.title, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1, modifier = Modifier.weight(1f))
                                             IconButton(onClick = { flippedItemIndex = null }, modifier = Modifier.size(24.dp)) {
-                                                Icon(Icons.Default.ArrowBack, contentDescription = "Flip", tint = Color.LightGray, modifier = Modifier.size(16.dp))
+                                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Flip", tint = Color.LightGray, modifier = Modifier.size(16.dp))
                                             }
                                         }
                                         Spacer(modifier = Modifier.height(6.dp))
@@ -238,37 +298,49 @@ fun CoverFlowScreen(
                                             modifier = Modifier.fillMaxSize(),
                                             contentPadding = PaddingValues(vertical = 4.dp)
                                         ) {
-                                            itemsIndexed(item.songs) { sIdx, song ->
-                                                Row(
-                                                    modifier = Modifier
-                                                        .fillMaxWidth()
-                                                        .clickable {
-                                                            viewModel.playSong(song, item.songs.drop(sIdx))
+                                            itemsIndexed(item.songsOrEpisodes) { sIdx, entry ->
+                                                when (entry) {
+                                                    is SongEntity -> {
+                                                        Row(
+                                                            modifier = Modifier
+                                                                .fillMaxWidth()
+                                                                .clickable { viewModel.playSong(entry, item.songsOrEpisodes.filterIsInstance<SongEntity>().drop(sIdx)) }
+                                                                .padding(vertical = 6.dp),
+                                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                                            verticalAlignment = Alignment.CenterVertically
+                                                        ) {
+                                                            Text(text = "${sIdx + 1}. ${entry.title}", fontSize = 11.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                                                         }
-                                                        .padding(vertical = 6.dp),
-                                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                                    verticalAlignment = Alignment.CenterVertically
-                                                ) {
-                                                    Text(
-                                                        text = "${sIdx + 1}. ${song.title}",
-                                                        fontSize = 11.sp,
-                                                        color = Color.White,
-                                                        maxLines = 1,
-                                                        overflow = TextOverflow.Ellipsis,
-                                                        modifier = Modifier.weight(1f)
-                                                    )
-                                                    Text(
-                                                        text = formatDuration(song.duration),
-                                                        fontSize = 10.sp,
-                                                        color = Color.Gray
-                                                    )
+                                                    }
+                                                    is TvEpisodeEntity -> {
+                                                        Row(
+                                                            modifier = Modifier
+                                                                .fillMaxWidth()
+                                                                .clickable { viewModel.playTvEpisode(entry) }
+                                                                .padding(vertical = 6.dp),
+                                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                                            verticalAlignment = Alignment.CenterVertically
+                                                        ) {
+                                                            Text(text = "S${entry.seasonNumber}E${entry.episodeNumber}: ${entry.title}", fontSize = 11.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                                                        }
+                                                    }
+                                                    is MovieEntity -> {
+                                                        Column(modifier = Modifier.padding(8.dp)) {
+                                                            Text(text = entry.title, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                                            Text(text = "Cast: ${entry.artists}", fontSize = 10.sp, color = Color.Gray)
+                                                            Spacer(modifier = Modifier.height(8.dp))
+                                                            Button(onClick = { viewModel.playMovie(entry) }) {
+                                                                Text("Play Movie")
+                                                            }
+                                                        }
+                                                    }
                                                 }
                                             }
                                         }
                                     }
                                 }
                             } else {
-                                // Front of Cover: Artwork & Title
+                                // Front of Cover: Vertical/Square Artwork & Title
                                 Box(
                                     modifier = Modifier
                                         .fillMaxSize()
@@ -286,17 +358,17 @@ fun CoverFlowScreen(
                                         )
                                     } else {
                                         Icon(
-                                            imageVector = Icons.Default.MusicNote,
+                                            imageVector = if (item.isVertical) Icons.Default.Tv else Icons.Default.MusicNote,
                                             contentDescription = null,
                                             tint = Color.Gray,
-                                            modifier = Modifier.size(64.dp)
+                                            modifier = Modifier.size(54.dp)
                                         )
                                     }
                                     Column(
                                         modifier = Modifier
                                             .align(Alignment.BottomStart)
                                             .fillMaxWidth()
-                                            .background(Color.Black.copy(alpha = 0.7f))
+                                            .background(Color.Black.copy(alpha = 0.75f))
                                             .padding(8.dp)
                                     ) {
                                         Text(text = item.title, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)

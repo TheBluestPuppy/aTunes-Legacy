@@ -86,6 +86,35 @@ object MediaImportHelper {
         return clean.ifBlank { filename }
     }
 
+    fun extractRandomVideoThumbnail(context: Context, uri: Uri): String {
+        val retriever = MediaMetadataRetriever()
+        try {
+            retriever.setDataSource(context, uri)
+            val durationStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
+            val durationMs = durationStr?.toLongOrNull() ?: 0L
+            val randomTimeUs = if (durationMs > 2000L) {
+                (Math.random() * (durationMs - 1000L) + 1000L).toLong() * 1000L
+            } else {
+                1000000L
+            }
+            val bitmap = retriever.getFrameAtTime(randomTimeUs, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+            if (bitmap != null) {
+                val imageFile = File(context.cacheDir, "video_thumb_${System.currentTimeMillis()}.jpg")
+                FileOutputStream(imageFile).use { out ->
+                    bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 90, out)
+                }
+                return Uri.fromFile(imageFile).toString()
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        } finally {
+            try {
+                retriever.release()
+            } catch (e: Exception) { }
+        }
+        return ""
+    }
+
     fun extractMetadata(context: Context, uri: Uri): ExtractedMediaMetadata {
         val fileName = getFileName(context, uri)
         val cleanName = cleanTitleFromFilename(fileName)
@@ -146,6 +175,10 @@ object MediaImportHelper {
             isVideo = true
         }
 
+        if (artworkUri.isBlank() && isVideo) {
+            artworkUri = extractRandomVideoThumbnail(context, uri)
+        }
+
         return ExtractedMediaMetadata(
             title = title,
             artistOrCreator = artist,
@@ -166,6 +199,11 @@ object MediaImportHelper {
         val fileName = getFileName(context, uri)
         val title = extracted.title.ifBlank { cleanTitleFromFilename(fileName) }
 
+        var artwork = extracted.artworkUri
+        if (extracted.isVideo && artwork.isBlank()) {
+            artwork = extractRandomVideoThumbnail(context, uri)
+        }
+
         return SongEntity(
             title = title,
             artist = extracted.artistOrCreator.ifBlank { "Unknown Artist" },
@@ -178,7 +216,7 @@ object MediaImportHelper {
             filePath = uri.toString(),
             uri = uri.toString(),
             duration = extracted.durationMs,
-            artworkUri = extracted.artworkUri,
+            artworkUri = artwork,
             isMusicVideo = extracted.isVideo
         )
     }
@@ -188,6 +226,7 @@ object MediaImportHelper {
         takePersistablePermission(context, uri)
         val fileName = getFileName(context, uri)
         val title = cleanTitleFromFilename(fileName)
+        val thumb = extractRandomVideoThumbnail(context, uri)
 
         return TvEpisodeEntity(
             title = title,
@@ -196,7 +235,7 @@ object MediaImportHelper {
             episodeNumber = 0,
             videoPath = uri.toString(),
             uri = uri.toString(),
-            thumbnailUri = ""
+            thumbnailUri = thumb
         )
     }
 
@@ -205,13 +244,14 @@ object MediaImportHelper {
         takePersistablePermission(context, uri)
         val fileName = getFileName(context, uri)
         val title = cleanTitleFromFilename(fileName)
+        val poster = extractRandomVideoThumbnail(context, uri)
 
         return MovieEntity(
             title = title,
             artists = "",
             releaseYear = 0,
             parentalRating = "",
-            thumbnailUri = "",
+            thumbnailUri = poster,
             videoPath = uri.toString(),
             uri = uri.toString()
         )

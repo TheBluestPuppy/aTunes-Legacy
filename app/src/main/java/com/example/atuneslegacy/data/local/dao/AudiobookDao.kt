@@ -61,4 +61,10 @@ interface AudiobookDao {
         newSeriesTitle: String,
         newGenre: String
     )
+
+    @Query("DELETE FROM audiobooks")
+    suspend fun deleteAllAudiobooks()
+
+    @Query("DELETE FROM book_series")
+    suspend fun deleteAllBookSeries()
 }

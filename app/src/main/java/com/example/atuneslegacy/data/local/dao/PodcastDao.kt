@@ -57,4 +57,10 @@ interface PodcastDao {
         WHERE podcastName = :oldPodcastName
     """)
     suspend fun updatePodcastEpisodesPodcastName(oldPodcastName: String, newPodcastName: String)
+
+    @Query("DELETE FROM podcast_shows")
+    suspend fun deleteAllPodcastShows()
+
+    @Query("DELETE FROM podcast_episodes")
+    suspend fun deleteAllPodcastEpisodes()
 }

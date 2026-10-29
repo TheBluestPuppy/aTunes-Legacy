@@ -298,7 +298,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     init {
         checkUserAuth()
-        seedSampleDataIfDatabaseEmpty()
+        viewModelScope.launch {
+            mediaRepository.clearAllMedia()
+        }
     }
 
     // --- USER INTERACTION HANDLERS ---

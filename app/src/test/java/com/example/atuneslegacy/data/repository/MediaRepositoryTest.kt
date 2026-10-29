@@ -53,7 +53,6 @@ class MediaRepositoryTest {
 
     @Test
     fun testAlbumCascadeUpdate() = runTest {
-        // Initial album and song
         val album = AlbumEntity(id = 1, title = "Original Album", albumArtist = "Original Artist", genre = "Rock", releaseYear = 2000)
         val song1 = SongEntity(id = 1, title = "Song 1", artist = "Artist 1", albumArtist = "Original Artist", albumTitle = "Original Album", genre = "Rock", year = 2000, uri = "uri1")
         val song2 = SongEntity(id = 2, title = "Song 2", artist = "Artist 2", albumArtist = "Original Artist", albumTitle = "Original Album", genre = "Rock", year = 2000, uri = "uri2")
@@ -62,7 +61,6 @@ class MediaRepositoryTest {
         fakeMusicDao.insertSong(song1)
         fakeMusicDao.insertSong(song2)
 
-        // Updated album metadata
         val updatedAlbum = AlbumEntity(id = 1, title = "Remastered Album", albumArtist = "New Artist", genre = "Pop Rock", releaseYear = 2024)
         repository.updateAlbumAndCascade(oldAlbumTitle = "Original Album", updatedAlbum = updatedAlbum)
 
@@ -219,6 +217,11 @@ class FakeMusicDao : MusicDao {
     override suspend fun insertPlaylistItem(item: PlaylistItemEntity): Long = 1
     override suspend fun deletePlaylistItem(item: PlaylistItemEntity) {}
     override suspend fun clearPlaylist(playlistId: Long) {}
+
+    override suspend fun deleteAllSongs() { songsMap.clear(); notifyChanges() }
+    override suspend fun deleteAllAlbums() { albumsMap.clear(); notifyChanges() }
+    override suspend fun deleteAllPlaylists() {}
+    override suspend fun deleteAllPlaylistItems() {}
 }
 
 class FakeTvDao : TvDao {
@@ -254,6 +257,9 @@ class FakeTvDao : TvDao {
             }
         }
     }
+
+    override suspend fun deleteAllTvShows() { shows.clear() }
+    override suspend fun deleteAllTvEpisodes() { episodes.clear() }
 }
 
 class FakeMovieDao : MovieDao {
@@ -268,6 +274,7 @@ class FakeMovieDao : MovieDao {
     override suspend fun updateMovie(movie: MovieEntity) { movies[movie.id] = movie }
     override suspend fun deleteMovie(movie: MovieEntity) { movies.remove(movie.id) }
     override suspend fun deleteMovieById(id: Long) { movies.remove(id) }
+    override suspend fun deleteAllMovies() { movies.clear() }
 }
 
 class FakePodcastDao : PodcastDao {
@@ -303,6 +310,9 @@ class FakePodcastDao : PodcastDao {
             }
         }
     }
+
+    override suspend fun deleteAllPodcastShows() { shows.clear() }
+    override suspend fun deleteAllPodcastEpisodes() { episodes.clear() }
 }
 
 class FakeAudiobookDao : AudiobookDao {
@@ -342,4 +352,7 @@ class FakeAudiobookDao : AudiobookDao {
             }
         }
     }
+
+    override suspend fun deleteAllAudiobooks() { books.clear() }
+    override suspend fun deleteAllBookSeries() { series.clear() }
 }

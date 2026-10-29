@@ -125,7 +125,8 @@ fun SongTableRow(
             if (showArtwork) {
                 Box(
                     modifier = Modifier
-                        .size(36.dp)
+                        .width(56.dp)
+                        .height(42.dp)
                         .clip(RoundedCornerShape(4.dp))
                         .background(Color(0xFFE2E6EE))
                         .border(0.5.dp, Color(0xFFC0C5CE), RoundedCornerShape(4.dp)),
@@ -143,7 +144,7 @@ fun SongTableRow(
                             imageVector = Icons.Default.Movie,
                             contentDescription = null,
                             tint = ITunesAccentBlue,
-                            modifier = Modifier.size(18.dp)
+                            modifier = Modifier.size(24.dp)
                         )
                     }
                 }
@@ -278,7 +279,8 @@ fun TvShowCard(
         ) {
             Box(
                 modifier = Modifier
-                    .size(72.dp)
+                    .width(80.dp)
+                    .height(115.dp)
                     .clip(RoundedCornerShape(4.dp))
                     .background(Color(0xFFE2E6EE))
                     .border(1.dp, Color(0xFFC4C9D4), RoundedCornerShape(4.dp)),
@@ -289,7 +291,7 @@ fun TvShowCard(
                         model = show.logoThumbnailUri,
                         contentDescription = show.title,
                         contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxWidth().aspectRatio(1f)
+                        modifier = Modifier.fillMaxSize()
                     )
                 } else {
                     Icon(

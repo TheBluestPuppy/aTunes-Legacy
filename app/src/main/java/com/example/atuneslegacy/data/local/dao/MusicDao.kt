@@ -99,4 +99,16 @@ interface MusicDao {
 
     @Query("DELETE FROM playlist_items WHERE playlistId = :playlistId")
     suspend fun clearPlaylist(playlistId: Long)
+
+    @Query("DELETE FROM songs")
+    suspend fun deleteAllSongs()
+
+    @Query("DELETE FROM albums")
+    suspend fun deleteAllAlbums()
+
+    @Query("DELETE FROM playlists")
+    suspend fun deleteAllPlaylists()
+
+    @Query("DELETE FROM playlist_items")
+    suspend fun deleteAllPlaylistItems()
 }

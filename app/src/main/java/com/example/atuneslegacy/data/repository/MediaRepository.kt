@@ -153,4 +153,18 @@ class MediaRepository(
             newGenre = updatedSeries.genre
         )
     }
+
+    suspend fun clearAllMedia() {
+        musicDao.deleteAllSongs()
+        musicDao.deleteAllAlbums()
+        musicDao.deleteAllPlaylists()
+        musicDao.deleteAllPlaylistItems()
+        tvDao.deleteAllTvShows()
+        tvDao.deleteAllTvEpisodes()
+        movieDao.deleteAllMovies()
+        podcastDao.deleteAllPodcastShows()
+        podcastDao.deleteAllPodcastEpisodes()
+        audiobookDao.deleteAllAudiobooks()
+        audiobookDao.deleteAllBookSeries()
+    }
 }
