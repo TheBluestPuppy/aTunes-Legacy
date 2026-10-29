@@ -2,8 +2,10 @@ package com.example.atuneslegacy.ui.screens
 
 import android.media.MediaRecorder
 import android.os.Environment
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -24,11 +26,15 @@ import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -39,6 +45,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -51,6 +58,7 @@ import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun RecordingsScreen(
     viewModel: MainViewModel,
@@ -62,6 +70,7 @@ fun RecordingsScreen(
     var isPaused by remember { mutableStateOf(false) }
     var mediaRecorder by remember { mutableStateOf<MediaRecorder?>(null) }
     var currentFile by remember { mutableStateOf<File?>(null) }
+    var editingRecording by remember { mutableStateOf<File?>(null) }
 
     val recordingsDir = remember {
         val dir = File(Environment.getExternalStorageDirectory(), "Recordings/aTunes")
@@ -200,7 +209,7 @@ fun RecordingsScreen(
         if (recordingFiles.isEmpty()) {
             EmptyMediaNotice(
                 title = "No Voice Recordings",
-                subtitle = "Recordings saved to Internal Storage > Recordings > aTunes will appear here."
+                subtitle = "Recordings saved to Internal Storage > Recordings > aTunes will appear here.\n(Long press any recording to edit name/tag or delete)"
             )
         } else {
             val currentYear = Calendar.getInstance().get(Calendar.YEAR)
@@ -225,6 +234,25 @@ fun RecordingsScreen(
                             .fillMaxWidth()
                             .background(themeColors.surface, RoundedCornerShape(6.dp))
                             .border(0.5.dp, themeColors.surfaceBorder, RoundedCornerShape(6.dp))
+                            .combinedClickable(
+                                onClick = {
+                                    viewModel.playSong(songEntity, recordingFiles.map { f ->
+                                        SongEntity(
+                                            id = f.absolutePath.hashCode().toLong(),
+                                            title = f.name,
+                                            artist = "Voice Recorder",
+                                            albumArtist = "aTunes",
+                                            albumTitle = "Recordings",
+                                            genre = "Voice",
+                                            year = currentYear,
+                                            uri = android.net.Uri.fromFile(f).toString()
+                                        )
+                                    })
+                                },
+                                onLongClick = {
+                                    editingRecording = file
+                                }
+                            )
                             .padding(12.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
@@ -273,4 +301,94 @@ fun RecordingsScreen(
             }
         }
     }
+
+    editingRecording?.let { file ->
+        RecordingMetadataDialog(
+            file = file,
+            onDismiss = { editingRecording = null },
+            onSave = { newName, _, _ ->
+                val ext = file.extension
+                val newFile = File(file.parentFile, "$newName.$ext")
+                file.renameTo(newFile)
+                editingRecording = null
+                refreshTrigger++
+            },
+            onDelete = {
+                file.delete()
+                editingRecording = null
+                refreshTrigger++
+            }
+        )
+    }
+}
+
+@Composable
+fun RecordingMetadataDialog(
+    file: File,
+    onDismiss: () -> Unit,
+    onSave: (newName: String, newDate: String, newTag: String) -> Unit,
+    onDelete: () -> Unit
+) {
+    val themeColors = LocalThemeColors.current
+    var name by remember(file) { mutableStateOf(file.nameWithoutExtension) }
+    var date by remember(file) { mutableStateOf(SimpleDateFormat("yyyy-MM-dd", Locale.ROOT).format(Date(file.lastModified()))) }
+    var tag by remember(file) { mutableStateOf("Memo") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Recording Info", fontWeight = FontWeight.Bold, color = themeColors.textPrimary) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("Name / Title") },
+                    singleLine = true,
+                    textStyle = TextStyle(color = themeColors.inputText),
+                    colors = OutlinedTextFieldDefaults.colors(focusedContainerColor = themeColors.surface, unfocusedContainerColor = themeColors.surface),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = date,
+                    onValueChange = { date = it },
+                    label = { Text("Date") },
+                    singleLine = true,
+                    textStyle = TextStyle(color = themeColors.inputText),
+                    colors = OutlinedTextFieldDefaults.colors(focusedContainerColor = themeColors.surface, unfocusedContainerColor = themeColors.surface),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = tag,
+                    onValueChange = { tag = it },
+                    label = { Text("Tag (e.g. Music Idea, Interview)") },
+                    singleLine = true,
+                    textStyle = TextStyle(color = themeColors.inputText),
+                    colors = OutlinedTextFieldDefaults.colors(focusedContainerColor = themeColors.surface, unfocusedContainerColor = themeColors.surface),
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(
+                    onClick = onDelete,
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.Red)
+                ) {
+                    Text("Delete File", color = Color.Red)
+                }
+                Button(
+                    onClick = { onSave(name.trim(), date.trim(), tag.trim()) },
+                    colors = ButtonDefaults.buttonColors(containerColor = themeColors.primaryAccent)
+                ) {
+                    Text("Save Changes")
+                }
+            }
+        },
+        dismissButton = {
+            OutlinedButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        },
+        containerColor = themeColors.surface
+    )
 }
