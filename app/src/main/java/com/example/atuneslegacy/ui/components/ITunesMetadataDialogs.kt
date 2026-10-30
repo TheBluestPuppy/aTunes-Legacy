@@ -27,6 +27,8 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -46,14 +48,15 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.style.TextOverflow
-import com.example.atuneslegacy.ui.theme.LocalThemeColors
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.PopupProperties
 import coil.compose.AsyncImage
+import com.example.atuneslegacy.data.remote.MusicBrainzApi
+import com.example.atuneslegacy.data.remote.TmdApi
 import com.example.atuneslegacy.data.local.entity.AlbumEntity
 import com.example.atuneslegacy.data.local.entity.AudiobookEntity
 import com.example.atuneslegacy.data.local.entity.BookSeriesEntity
@@ -63,17 +66,83 @@ import com.example.atuneslegacy.data.local.entity.PodcastShowEntity
 import com.example.atuneslegacy.data.local.entity.SongEntity
 import com.example.atuneslegacy.data.local.entity.TvEpisodeEntity
 import com.example.atuneslegacy.data.local.entity.TvShowEntity
-import com.example.atuneslegacy.data.remote.MusicBrainzApi
-import com.example.atuneslegacy.data.remote.TmdApi
-import com.example.atuneslegacy.ui.theme.ITunesAccentBlue
-import com.example.atuneslegacy.ui.theme.ITunesBackgroundLight
-import com.example.atuneslegacy.ui.theme.ITunesDividerLight
-import com.example.atuneslegacy.ui.theme.ITunesTopBarBorder
-import com.example.atuneslegacy.ui.theme.ITunesTopBarEnd
-import com.example.atuneslegacy.ui.theme.ITunesTopBarStart
+import com.example.atuneslegacy.ui.theme.LocalThemeColors
 import kotlinx.coroutines.launch
 
-// Base container wrapper for iTunes 11 styled Get Info / Inspector windows
+@Composable
+fun AutoSuggestOutlinedTextField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    suggestions: List<String>,
+    modifier: Modifier = Modifier,
+    keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
+    singleLine: Boolean = true
+) {
+    val themeColors = LocalThemeColors.current
+    var expanded by remember { mutableStateOf(false) }
+
+    // Suggest info when value length >= 3
+    val filteredSuggestions = remember(value, suggestions) {
+        if (value.length >= 3) {
+            suggestions.filter {
+                it.contains(value, ignoreCase = true) && !it.equals(value, ignoreCase = true)
+            }.distinct().take(5)
+        } else {
+            emptyList()
+        }
+    }
+
+    Box(modifier = modifier) {
+        OutlinedTextField(
+            value = value,
+            onValueChange = {
+                onValueChange(it)
+                expanded = it.length >= 3
+            },
+            label = { Text(label) },
+            singleLine = singleLine,
+            keyboardOptions = keyboardOptions,
+            textStyle = TextStyle(color = themeColors.inputText),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedTextColor = themeColors.inputText,
+                unfocusedTextColor = themeColors.inputText,
+                focusedContainerColor = themeColors.surface,
+                unfocusedContainerColor = themeColors.surface,
+                focusedBorderColor = themeColors.primaryAccent,
+                unfocusedBorderColor = themeColors.surfaceBorder
+            ),
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        DropdownMenu(
+            expanded = expanded && filteredSuggestions.isNotEmpty(),
+            onDismissRequest = { expanded = false },
+            properties = PopupProperties(focusable = false),
+            modifier = Modifier
+                .background(themeColors.surface)
+                .border(1.dp, themeColors.surfaceBorder)
+        ) {
+            filteredSuggestions.forEach { suggestion ->
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            text = suggestion,
+                            color = themeColors.textPrimary,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    },
+                    onClick = {
+                        onValueChange(suggestion)
+                        expanded = false
+                    }
+                )
+            }
+        }
+    }
+}
+
 @Composable
 fun ITunesDialogContainer(
     title: String,
@@ -86,67 +155,65 @@ fun ITunesDialogContainer(
 ) {
     val themeColors = LocalThemeColors.current
 
-    Dialog(onDismissRequest = onDismiss) {
-        Surface(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            shape = RoundedCornerShape(6.dp),
-            color = themeColors.surface,
-            border = BorderStroke(1.dp, themeColors.surfaceBorder),
-            tonalElevation = 8.dp
-        ) {
+    Surface(
+        shape = RoundedCornerShape(8.dp),
+        color = themeColors.surface,
+        border = BorderStroke(1.dp, themeColors.surfaceBorder),
+        shadowElevation = 8.dp,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp)
+    ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            // Header Bar
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(
+                        brush = Brush.verticalGradient(
+                            colors = if (themeColors.isDark) {
+                                listOf(Color(0xFF2C3038), Color(0xFF1E2125))
+                            } else {
+                                listOf(Color(0xFFE2E6EE), Color(0xFFC4C9D4))
+                            }
+                        )
+                    )
+                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                contentAlignment = Alignment.CenterStart
+            ) {
+                Text(
+                    text = title,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = themeColors.textPrimary
+                )
+            }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(1.dp)
+                    .background(themeColors.surfaceBorder)
+            )
+
+            // Content Body
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(themeColors.surface)
+                    .verticalScroll(rememberScrollState())
+                    .padding(16.dp)
             ) {
-                // Header Bar
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(
-                            brush = Brush.verticalGradient(
-                                colors = listOf(themeColors.topBarStart, themeColors.topBarEnd)
-                            )
-                        )
-                        .padding(horizontal = 16.dp, vertical = 12.dp)
-                ) {
-                    Text(
-                        text = title,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = themeColors.textPrimary
-                    )
-                }
+                content()
 
-                // Header bottom border
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(1.dp)
-                        .background(themeColors.topBarBorder)
-                )
-
-                // Scrollable Content Area
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(weight = 1f, fill = false)
-                        .verticalScroll(rememberScrollState())
-                        .padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    content()
-
-                    if (showPullMetadata && onPullMetadata != null) {
-                        Spacer(modifier = Modifier.height(4.dp))
-                        OutlinedButton(
-                            onClick = onPullMetadata,
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = themeColors.primaryAccent),
-                            shape = RoundedCornerShape(4.dp)
-                        ) {
+                if (showPullMetadata && onPullMetadata != null) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Button(
+                        onClick = onPullMetadata,
+                        colors = ButtonDefaults.buttonColors(containerColor = themeColors.primaryAccent),
+                        shape = RoundedCornerShape(4.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(
                                 imageVector = Icons.Default.AutoAwesome,
                                 contentDescription = "Pull Metadata",
@@ -224,6 +291,10 @@ fun ITunesDialogContainer(
 @Composable
 fun SongMetadataDialog(
     song: SongEntity,
+    artistSuggestions: List<String> = emptyList(),
+    albumSuggestions: List<String> = emptyList(),
+    genreSuggestions: List<String> = emptyList(),
+    composerSuggestions: List<String> = emptyList(),
     onDismiss: () -> Unit,
     onSave: (SongEntity) -> Unit,
     onDelete: (() -> Unit)? = null
@@ -278,27 +349,11 @@ fun SongMetadataDialog(
                         artworkUri = res.artworkUrl
                     }
                 } else {
-                    if (title.contains("Hotel", ignoreCase = true) || artist.contains("Eagles", ignoreCase = true)) {
-                        title = "Hotel California"
-                        artist = "Eagles"
-                        albumArtist = "Eagles"
-                        albumTitle = "Hotel California"
-                        genre = "Classic Rock"
-                        year = "1976"
-                    } else if (title.contains("Thriller", ignoreCase = true) || artist.contains("Michael", ignoreCase = true)) {
-                        title = "Thriller"
-                        artist = "Michael Jackson"
-                        albumArtist = "Michael Jackson"
-                        albumTitle = "Thriller"
-                        genre = "Pop"
-                        year = "1982"
-                    } else {
-                        artist = artist.ifBlank { "Pop / Rock Artist" }
-                        albumArtist = albumArtist.ifBlank { artist }
-                        albumTitle = albumTitle.ifBlank { "$title - Single" }
-                        genre = genre.ifBlank { "Pop" }
-                        year = if (year == "0") "2024" else year
-                    }
+                    artist = artist.ifBlank { "Pop / Rock Artist" }
+                    albumArtist = albumArtist.ifBlank { artist }
+                    albumTitle = albumTitle.ifBlank { "$title - Single" }
+                    genre = genre.ifBlank { "Pop" }
+                    year = if (year == "0") "2024" else year
                 }
             }
         }
@@ -340,40 +395,35 @@ fun SongMetadataDialog(
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
-            OutlinedTextField(
+            AutoSuggestOutlinedTextField(
                 value = artist,
                 onValueChange = { artist = it },
-                label = { Text("Artist") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
+                label = "Artist",
+                suggestions = artistSuggestions
             )
-            OutlinedTextField(
+            AutoSuggestOutlinedTextField(
                 value = albumArtist,
                 onValueChange = { albumArtist = it },
-                label = { Text("Album Artist") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
+                label = "Album Artist",
+                suggestions = artistSuggestions
             )
-            OutlinedTextField(
+            AutoSuggestOutlinedTextField(
                 value = albumTitle,
                 onValueChange = { albumTitle = it },
-                label = { Text("Album Title") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
+                label = "Album Title",
+                suggestions = albumSuggestions
             )
-            OutlinedTextField(
+            AutoSuggestOutlinedTextField(
                 value = composer,
                 onValueChange = { composer = it },
-                label = { Text("Composer") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
+                label = "Composer",
+                suggestions = composerSuggestions
             )
-            OutlinedTextField(
+            AutoSuggestOutlinedTextField(
                 value = genre,
                 onValueChange = { genre = it },
-                label = { Text("Genre") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
+                label = "Genre",
+                suggestions = genreSuggestions
             )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(
@@ -401,6 +451,9 @@ fun SongMetadataDialog(
 @Composable
 fun AlbumMetadataDialog(
     album: AlbumEntity,
+    artistSuggestions: List<String> = emptyList(),
+    albumSuggestions: List<String> = emptyList(),
+    genreSuggestions: List<String> = emptyList(),
     onDismiss: () -> Unit,
     onSave: (oldTitle: String, AlbumEntity) -> Unit,
     onDelete: (() -> Unit)? = null
@@ -466,26 +519,23 @@ fun AlbumMetadataDialog(
                 }
             }
 
-            OutlinedTextField(
+            AutoSuggestOutlinedTextField(
                 value = title,
                 onValueChange = { title = it },
-                label = { Text("Album Title") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
+                label = "Album Title",
+                suggestions = albumSuggestions
             )
-            OutlinedTextField(
+            AutoSuggestOutlinedTextField(
                 value = albumArtist,
                 onValueChange = { albumArtist = it },
-                label = { Text("Album Artist") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
+                label = "Album Artist",
+                suggestions = artistSuggestions
             )
-            OutlinedTextField(
+            AutoSuggestOutlinedTextField(
                 value = genre,
                 onValueChange = { genre = it },
-                label = { Text("Genre") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
+                label = "Genre",
+                suggestions = genreSuggestions
             )
             OutlinedTextField(
                 value = releaseYear,
@@ -503,6 +553,7 @@ fun AlbumMetadataDialog(
 @Composable
 fun TvShowMetadataDialog(
     show: TvShowEntity,
+    showSuggestions: List<String> = emptyList(),
     onDismiss: () -> Unit,
     onSave: (oldShowTitle: String, TvShowEntity) -> Unit,
     onDelete: (() -> Unit)? = null
@@ -548,15 +599,6 @@ fun TvShowMetadataDialog(
                         logoUri = TmdApi.getImageUrl(res.poster_path)
                     }
                     parentalRating = "TV-MA"
-                } else {
-                    if (title.contains("Breaking", ignoreCase = true)) {
-                        title = "Breaking Bad"
-                        releaseYear = "2008"
-                        parentalRating = "TV-MA"
-                    } else {
-                        parentalRating = parentalRating.ifBlank { "TV-14" }
-                        releaseYear = if (releaseYear == "0") "2024" else releaseYear
-                    }
                 }
             }
         }
@@ -590,12 +632,11 @@ fun TvShowMetadataDialog(
                 }
             }
 
-            OutlinedTextField(
+            AutoSuggestOutlinedTextField(
                 value = title,
                 onValueChange = { title = it },
-                label = { Text("Show Title") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
+                label = "Show Title",
+                suggestions = showSuggestions
             )
             OutlinedTextField(
                 value = releaseYear,
@@ -620,6 +661,7 @@ fun TvShowMetadataDialog(
 @Composable
 fun TvEpisodeMetadataDialog(
     episode: TvEpisodeEntity,
+    showSuggestions: List<String> = emptyList(),
     onDismiss: () -> Unit,
     onSave: (TvEpisodeEntity) -> Unit,
     onDelete: (() -> Unit)? = null
@@ -700,12 +742,11 @@ fun TvEpisodeMetadataDialog(
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
-            OutlinedTextField(
+            AutoSuggestOutlinedTextField(
                 value = showTitle,
                 onValueChange = { showTitle = it },
-                label = { Text("Show Name") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
+                label = "Show Name",
+                suggestions = showSuggestions
             )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(
@@ -781,22 +822,6 @@ fun MovieMetadataDialog(
                         thumbnailUri = TmdApi.getImageUrl(res.poster_path)
                     }
                     parentalRating = "PG-13"
-                } else {
-                    if (title.contains("Inception", ignoreCase = true)) {
-                        title = "Inception"
-                        artists = "Leonardo DiCaprio, Joseph Gordon-Levitt"
-                        releaseYear = "2010"
-                        parentalRating = "PG-13"
-                    } else if (title.contains("Dark Knight", ignoreCase = true)) {
-                        title = "The Dark Knight"
-                        artists = "Christian Bale, Heath Ledger"
-                        releaseYear = "2008"
-                        parentalRating = "PG-13"
-                    } else {
-                        artists = artists.ifBlank { "Lead Actors & Directors" }
-                        releaseYear = if (releaseYear == "0") "2024" else releaseYear
-                        parentalRating = parentalRating.ifBlank { "PG-13" }
-                    }
                 }
             }
         }
@@ -863,10 +888,12 @@ fun MovieMetadataDialog(
     }
 }
 
-// 6. PODCAST SHOW METADATA DIALOG (Cascading) - Omit Pull Metadata per requirements
+// 6. PODCAST SHOW METADATA DIALOG
 @Composable
 fun PodcastShowMetadataDialog(
     show: PodcastShowEntity,
+    podcastSuggestions: List<String> = emptyList(),
+    creatorSuggestions: List<String> = emptyList(),
     onDismiss: () -> Unit,
     onSave: (oldPodcastName: String, PodcastShowEntity) -> Unit,
     onDelete: (() -> Unit)? = null
@@ -931,19 +958,17 @@ fun PodcastShowMetadataDialog(
                 }
             }
 
-            OutlinedTextField(
+            AutoSuggestOutlinedTextField(
                 value = title,
                 onValueChange = { title = it },
-                label = { Text("Podcast Title") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
+                label = "Podcast Title",
+                suggestions = podcastSuggestions
             )
-            OutlinedTextField(
+            AutoSuggestOutlinedTextField(
                 value = creatorHost,
                 onValueChange = { creatorHost = it },
-                label = { Text("Creator / Host") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
+                label = "Creator / Host",
+                suggestions = creatorSuggestions
             )
             OutlinedTextField(
                 value = category,
@@ -963,10 +988,11 @@ fun PodcastShowMetadataDialog(
     }
 }
 
-// 7. PODCAST EPISODE METADATA DIALOG - Omit Pull Metadata per requirements
+// 7. PODCAST EPISODE METADATA DIALOG
 @Composable
 fun PodcastEpisodeMetadataDialog(
     episode: PodcastEpisodeEntity,
+    podcastSuggestions: List<String> = emptyList(),
     onDismiss: () -> Unit,
     onSave: (PodcastEpisodeEntity) -> Unit,
     onDelete: (() -> Unit)? = null
@@ -1000,12 +1026,11 @@ fun PodcastEpisodeMetadataDialog(
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
-            OutlinedTextField(
+            AutoSuggestOutlinedTextField(
                 value = podcastName,
                 onValueChange = { podcastName = it },
-                label = { Text("Podcast Name") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
+                label = "Podcast Name",
+                suggestions = podcastSuggestions
             )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(
@@ -1029,10 +1054,13 @@ fun PodcastEpisodeMetadataDialog(
     }
 }
 
-// 8. AUDIOBOOK METADATA DIALOG - Omit Pull Metadata per requirements
+// 8. AUDIOBOOK METADATA DIALOG
 @Composable
 fun AudiobookMetadataDialog(
     book: AudiobookEntity,
+    authorSuggestions: List<String> = emptyList(),
+    seriesSuggestions: List<String> = emptyList(),
+    genreSuggestions: List<String> = emptyList(),
     onDismiss: () -> Unit,
     onSave: (AudiobookEntity) -> Unit,
     onDelete: (() -> Unit)? = null
@@ -1106,19 +1134,17 @@ fun AudiobookMetadataDialog(
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
-            OutlinedTextField(
+            AutoSuggestOutlinedTextField(
                 value = author,
                 onValueChange = { author = it },
-                label = { Text("Author") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
+                label = "Author",
+                suggestions = authorSuggestions
             )
-            OutlinedTextField(
+            AutoSuggestOutlinedTextField(
                 value = bookSeries,
                 onValueChange = { bookSeries = it },
-                label = { Text("Book Series") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
+                label = "Book Series",
+                suggestions = seriesSuggestions
             )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(
@@ -1138,12 +1164,11 @@ fun AudiobookMetadataDialog(
                     modifier = Modifier.weight(1f)
                 )
             }
-            OutlinedTextField(
+            AutoSuggestOutlinedTextField(
                 value = genre,
                 onValueChange = { genre = it },
-                label = { Text("Genre") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
+                label = "Genre",
+                suggestions = genreSuggestions
             )
         }
     }
@@ -1153,6 +1178,8 @@ fun AudiobookMetadataDialog(
 @Composable
 fun BookSeriesMetadataDialog(
     series: BookSeriesEntity,
+    seriesSuggestions: List<String> = emptyList(),
+    genreSuggestions: List<String> = emptyList(),
     onDismiss: () -> Unit,
     onSave: (oldSeriesTitle: String, BookSeriesEntity) -> Unit,
     onDelete: (() -> Unit)? = null
@@ -1213,19 +1240,17 @@ fun BookSeriesMetadataDialog(
                 }
             }
 
-            OutlinedTextField(
+            AutoSuggestOutlinedTextField(
                 value = title,
                 onValueChange = { title = it },
-                label = { Text("Series Title") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
+                label = "Series Title",
+                suggestions = seriesSuggestions
             )
-            OutlinedTextField(
+            AutoSuggestOutlinedTextField(
                 value = genre,
                 onValueChange = { genre = it },
-                label = { Text("Genre") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
+                label = "Genre",
+                suggestions = genreSuggestions
             )
         }
     }

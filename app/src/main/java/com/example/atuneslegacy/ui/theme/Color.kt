@@ -27,7 +27,10 @@ data class ThemeColors(
     val lcdBackground: Color,
     val lcdTextPrimary: Color,
     val lcdTextSecondary: Color
-)
+) {
+    val isAppleMusic: Boolean
+        get() = appTheme == AppTheme.NEW_LIGHT || appTheme == AppTheme.NEW_DARK
+}
 
 fun getThemeColors(appTheme: AppTheme): ThemeColors {
     return when (appTheme) {
@@ -84,7 +87,7 @@ fun getThemeColors(appTheme: AppTheme): ThemeColors {
             inputText = Color.Black,
             activeSegmentStart = Color(0xFFFA233B),
             activeSegmentEnd = Color(0xFFD81B30),
-            lcdBackground = Color(0xFFF6F6F8),
+            lcdBackground = Color(0xFFFFFFFF),
             lcdTextPrimary = Color(0xFF000000),
             lcdTextSecondary = Color(0xFF8E8E93)
         )

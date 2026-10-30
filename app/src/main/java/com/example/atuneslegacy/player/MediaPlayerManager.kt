@@ -3,9 +3,11 @@ package com.example.atuneslegacy.player
 import android.content.Context
 import android.net.Uri
 import androidx.media3.common.MediaItem
+import androidx.media3.common.MediaMetadata
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.session.MediaSession
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -34,6 +36,7 @@ data class MediaItemMetadata(
 class MediaPlayerManager(context: Context) {
 
     val exoPlayer: ExoPlayer = ExoPlayer.Builder(context.applicationContext).build()
+    val mediaSession: MediaSession = MediaSession.Builder(context.applicationContext, exoPlayer).build()
 
     private val scope = CoroutineScope(Dispatchers.Main + Job())
     private var progressJob: Job? = null
@@ -107,7 +110,15 @@ class MediaPlayerManager(context: Context) {
 
         try {
             val uri = Uri.parse(mediaItem.mediaUri)
-            val exoMediaItem = MediaItem.fromUri(uri)
+            val metadata = MediaMetadata.Builder()
+                .setTitle(mediaItem.title)
+                .setArtist(mediaItem.subtitle)
+                .setAlbumTitle(mediaItem.albumOrCategory)
+                .build()
+            val exoMediaItem = MediaItem.Builder()
+                .setUri(uri)
+                .setMediaMetadata(metadata)
+                .build()
             exoPlayer.setMediaItem(exoMediaItem)
             exoPlayer.prepare()
             exoPlayer.play()
@@ -149,6 +160,10 @@ class MediaPlayerManager(context: Context) {
         _currentPositionMs.value = positionMs
     }
 
+    fun setPlaybackSpeed(speed: Float) {
+        exoPlayer.setPlaybackSpeed(speed)
+    }
+
     fun hideVideoPlayer() {
         _showVideoPlayer.value = false
     }
@@ -179,6 +194,7 @@ class MediaPlayerManager(context: Context) {
 
     fun release() {
         stopProgressUpdate()
+        mediaSession.release()
         exoPlayer.release()
     }
 }

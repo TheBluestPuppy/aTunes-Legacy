@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Book
+import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.PlayCircle
@@ -30,6 +31,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -70,20 +72,42 @@ fun formatDuration(durationMs: Long): String {
 // 1. SONG TABLE HEADER
 @Composable
 fun SongTableHeader(modifier: Modifier = Modifier) {
+    val themeColors = com.example.atuneslegacy.ui.theme.LocalThemeColors.current
+    if (themeColors.isAppleMusic) return
+
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .background(Color(0xFFE2E6ED))
-            .border(width = 0.5.dp, color = Color(0xFFC0C5CE))
-            .padding(horizontal = 12.dp, vertical = 6.dp),
+            .background(
+                brush = androidx.compose.ui.graphics.Brush.verticalGradient(
+                    listOf(Color(0xFFEAEDF3), Color(0xFFD4D8E2))
+                )
+            )
+            .border(width = 0.5.dp, color = Color(0xFFB4B9C5))
+            .padding(horizontal = 8.dp, vertical = 5.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(text = "#", modifier = Modifier.width(30.dp), fontWeight = FontWeight.Bold, fontSize = 11.sp, color = Color(0xFF4A4E58))
-        Text(text = "Title", modifier = Modifier.weight(2.5f), fontWeight = FontWeight.Bold, fontSize = 11.sp, color = Color(0xFF4A4E58))
-        Text(text = "Time", modifier = Modifier.width(55.dp), fontWeight = FontWeight.Bold, fontSize = 11.sp, color = Color(0xFF4A4E58))
-        Text(text = "Artist", modifier = Modifier.weight(2f), fontWeight = FontWeight.Bold, fontSize = 11.sp, color = Color(0xFF4A4E58))
-        Text(text = "Album", modifier = Modifier.weight(2f), fontWeight = FontWeight.Bold, fontSize = 11.sp, color = Color(0xFF4A4E58))
-        Text(text = "Genre", modifier = Modifier.weight(1.5f), fontWeight = FontWeight.Bold, fontSize = 11.sp, color = Color(0xFF4A4E58))
+        Text(text = "#", modifier = Modifier.width(28.dp), fontWeight = FontWeight.Bold, fontSize = 11.sp, color = Color(0xFF3C404B))
+        Box(modifier = Modifier.width(1.dp).height(12.dp).background(Color(0xFFC0C5CE)))
+        Spacer(modifier = Modifier.width(6.dp))
+
+        Text(text = "Title", modifier = Modifier.weight(2.5f), fontWeight = FontWeight.Bold, fontSize = 11.sp, color = Color(0xFF3C404B))
+        Box(modifier = Modifier.width(1.dp).height(12.dp).background(Color(0xFFC0C5CE)))
+        Spacer(modifier = Modifier.width(6.dp))
+
+        Text(text = "Time", modifier = Modifier.width(50.dp), fontWeight = FontWeight.Bold, fontSize = 11.sp, color = Color(0xFF3C404B))
+        Box(modifier = Modifier.width(1.dp).height(12.dp).background(Color(0xFFC0C5CE)))
+        Spacer(modifier = Modifier.width(6.dp))
+
+        Text(text = "Artist", modifier = Modifier.weight(2f), fontWeight = FontWeight.Bold, fontSize = 11.sp, color = Color(0xFF3C404B))
+        Box(modifier = Modifier.width(1.dp).height(12.dp).background(Color(0xFFC0C5CE)))
+        Spacer(modifier = Modifier.width(6.dp))
+
+        Text(text = "Album", modifier = Modifier.weight(2f), fontWeight = FontWeight.Bold, fontSize = 11.sp, color = Color(0xFF3C404B))
+        Box(modifier = Modifier.width(1.dp).height(12.dp).background(Color(0xFFC0C5CE)))
+        Spacer(modifier = Modifier.width(6.dp))
+
+        Text(text = "Genre", modifier = Modifier.weight(1.5f), fontWeight = FontWeight.Bold, fontSize = 11.sp, color = Color(0xFF3C404B))
     }
 }
 
@@ -98,6 +122,74 @@ fun SongTableRow(
     onLongClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    val themeColors = com.example.atuneslegacy.ui.theme.LocalThemeColors.current
+
+    if (themeColors.isAppleMusic) {
+        Column(modifier = modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(if (isSelected) themeColors.primaryAccent.copy(alpha = 0.15f) else themeColors.surface)
+                    .combinedClickable(onClick = onClick, onLongClick = onLongClick)
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(46.dp)
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(themeColors.background),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (song.artworkUri.isNotBlank()) {
+                        AsyncImage(
+                            model = song.artworkUri,
+                            contentDescription = song.title,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    } else {
+                        Icon(
+                            imageVector = if (song.isMusicVideo) Icons.Default.Movie else Icons.Default.MusicNote,
+                            contentDescription = null,
+                            tint = themeColors.primaryAccent,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = song.title,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = themeColors.textPrimary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = "${song.artist} — ${song.albumTitle}",
+                        fontSize = 13.sp,
+                        color = themeColors.textSecondary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                IconButton(onClick = onLongClick) {
+                    Icon(
+                        imageVector = Icons.Default.MoreHoriz,
+                        contentDescription = "More",
+                        tint = themeColors.textSecondary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+            HorizontalDivider(color = themeColors.surfaceBorder, thickness = 0.5.dp, modifier = Modifier.padding(start = 74.dp))
+        }
+        return
+    }
+
     val backgroundColor = when {
         isSelected -> Color(0xFF388BFD).copy(alpha = 0.2f)
         index % 2 == 1 -> Color(0xFFF7F8FA)

@@ -1,10 +1,10 @@
 package com.example.atuneslegacy.ui.components
 
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,6 +18,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -30,17 +32,18 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -52,8 +55,8 @@ import com.example.atuneslegacy.data.local.entity.TvEpisodeEntity
 import com.example.atuneslegacy.ui.navigation.MainTab
 import com.example.atuneslegacy.ui.navigation.MusicSubTab
 import com.example.atuneslegacy.ui.viewmodel.MainViewModel
+import kotlinx.coroutines.launch
 import kotlin.math.abs
-import kotlin.math.roundToInt
 
 data class CoverFlowModelItem(
     val id: String,
@@ -82,8 +85,7 @@ fun CoverFlowScreen(
     val podcastEpisodes by viewModel.mediaRepository.getAllPodcastEpisodes().collectAsState(initial = emptyList())
     val audiobooks by viewModel.allAudiobooks.collectAsState()
 
-    var selectedItemIndex by remember(currentTab, musicSubTab) { mutableStateOf(0) }
-    var dragOffset by remember { mutableFloatStateOf(0f) }
+    val scope = rememberCoroutineScope()
     var flippedItemIndex by remember { mutableStateOf<Int?>(null) }
 
     val items = remember(currentTab, musicSubTab, songs, albums, playlists, tvShows, movies, tvEpisodes, podcasts, podcastEpisodes, audiobooks) {
@@ -152,7 +154,7 @@ fun CoverFlowScreen(
                         title = show.title,
                         subtitle = "${showEps.size} Episodes • ${show.releaseYear}",
                         artworkUri = show.logoThumbnailUri,
-                        isVertical = true, // Vertical cover for TV Shows
+                        isVertical = true,
                         songsOrEpisodes = showEps
                     )
                 }
@@ -164,7 +166,7 @@ fun CoverFlowScreen(
                         title = movie.title,
                         subtitle = "${movie.releaseYear} • ${movie.parentalRating}",
                         artworkUri = movie.thumbnailUri,
-                        isVertical = true, // Vertical cover for Movies
+                        isVertical = true,
                         songsOrEpisodes = listOf(movie),
                         action = { viewModel.playMovie(movie) }
                     )
@@ -202,179 +204,224 @@ fun CoverFlowScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(Color.Black)
-            .pointerInput(items) {
-                if (items.isNotEmpty()) {
-                    detectHorizontalDragGestures(
-                        onDragEnd = {
-                            val targetIndex = (selectedItemIndex - (dragOffset / 140f).roundToInt()).coerceIn(0, items.size - 1)
-                            selectedItemIndex = targetIndex
-                            dragOffset = 0f
-                            flippedItemIndex = null
-                        },
-                        onHorizontalDrag = { _, dragAmount ->
-                            dragOffset += dragAmount
-                        }
-                    )
-                }
-            },
+            .background(Color.Black),
         contentAlignment = Alignment.Center
     ) {
         if (items.isEmpty()) {
             Text("No Media Available for Cover Flow", color = Color.Gray, fontSize = 16.sp)
         } else {
-            val activeIndex = (selectedItemIndex - (dragOffset / 140f).roundToInt()).coerceIn(0, items.size - 1)
+            val pagerState = rememberPagerState(pageCount = { items.size })
+            val configuration = LocalConfiguration.current
+            val screenWidthDp = configuration.screenWidthDp.dp
 
-            // Centered Smooth 3D Perspective Cover Flow Row
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy((-70).dp),
-                    verticalAlignment = Alignment.CenterVertically
+            val isVertical = items.firstOrNull()?.isVertical == true
+            val cardWidth = if (isVertical) 150.dp else 200.dp
+            val cardHeight = if (isVertical) 220.dp else 200.dp
+            val sidePadding = ((screenWidthDp - cardWidth) / 2).coerceAtLeast(16.dp)
+
+            HorizontalPager(
+                state = pagerState,
+                contentPadding = PaddingValues(horizontal = sidePadding),
+                pageSpacing = (-60).dp,
+                modifier = Modifier.fillMaxSize()
+            ) { pageIndex ->
+                val item = items[pageIndex]
+                val pageOffset = (pagerState.currentPage - pageIndex) + pagerState.currentPageOffsetFraction
+                val absOffset = abs(pageOffset)
+
+                // 3D Perspective Cover Flow Calculations
+                val rotationY = when {
+                    pageOffset > 0f -> (60f * pageOffset).coerceAtMost(60f)
+                    pageOffset < 0f -> (-60f * -pageOffset).coerceAtLeast(-60f)
+                    else -> 0f
+                }
+                val scale = (1.2f - absOffset * 0.35f).coerceIn(0.8f, 1.2f)
+                val alpha = (1f - absOffset * 0.25f).coerceIn(0.2f, 1f)
+                val itemZIndex = 100f - absOffset
+
+                val isFlipped = flippedItemIndex == pageIndex
+                val animatedRotation by animateFloatAsState(
+                    targetValue = if (isFlipped) 180f else rotationY,
+                    animationSpec = tween(durationMillis = 400),
+                    label = "rotation"
+                )
+
+                Box(
+                    modifier = Modifier
+                        .size(width = cardWidth, height = cardHeight)
+                        .zIndex(itemZIndex)
+                        .graphicsLayer {
+                            this.rotationY = animatedRotation
+                            cameraDistance = 14f * density
+                            scaleX = scale
+                            scaleY = scale
+                            this.alpha = alpha
+                        }
+                        .clickable {
+                            if (absOffset < 0.2f) {
+                                if (item.action != null) {
+                                    item.action.invoke()
+                                } else if (item.songsOrEpisodes.isNotEmpty()) {
+                                    flippedItemIndex = if (flippedItemIndex == pageIndex) null else pageIndex
+                                }
+                            } else {
+                                scope.launch {
+                                    flippedItemIndex = null
+                                    pagerState.animateScrollToPage(pageIndex)
+                                }
+                            }
+                        },
+                    contentAlignment = Alignment.Center
                 ) {
-                    items.forEachIndexed { index, item ->
-                        val distance = index - activeIndex
-                        val isCenter = distance == 0
-                        val rotationY = (distance * -28f).coerceIn(-65f, 65f)
-                        val scale = if (isCenter) 1.15f else 0.8f
-                        val alpha = if (abs(distance) > 3) 0f else 1f
-
-                        val isFlipped = flippedItemIndex == index
-                        val animatedRotation by animateFloatAsState(targetValue = if (isFlipped) 180f else rotationY, label = "rotation")
-
-                        val cardWidth = if (item.isVertical) 160.dp else 220.dp
-                        val cardHeight = if (item.isVertical) 230.dp else 220.dp
-
+                    if (animatedRotation > 90f && animatedRotation < 270f) {
+                        // Back of Cover: Tracklist / Details
                         Box(
                             modifier = Modifier
-                                .size(width = cardWidth, height = cardHeight)
-                                .graphicsLayer {
-                                    this.rotationY = animatedRotation
-                                    cameraDistance = 14f * density
-                                    scaleX = scale
-                                    scaleY = scale
-                                    this.alpha = alpha
-                                }
-                                .clickable {
-                                    if (isCenter) {
-                                        if (item.action != null) {
-                                            item.action.invoke()
-                                        } else if (item.songsOrEpisodes.isNotEmpty()) {
-                                            flippedItemIndex = if (flippedItemIndex == index) null else index
-                                        }
-                                    } else {
-                                        selectedItemIndex = index
-                                        flippedItemIndex = null
-                                    }
-                                },
-                            contentAlignment = Alignment.Center
+                                .fillMaxSize()
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(Color(0xFF1C1C1E))
+                                .border(1.dp, Color(0xFF3A3A3C), RoundedCornerShape(8.dp))
+                                .padding(12.dp)
+                                .graphicsLayer { this.rotationY = 180f }
                         ) {
-                            if (animatedRotation > 90f && animatedRotation < 270f) {
-                                // Back of Cover: Tracklist / Episodes / Details
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(Color(0xFF1C1C1E))
-                                        .border(1.dp, Color(0xFF3A3A3C), RoundedCornerShape(8.dp))
-                                        .padding(12.dp)
-                                        .graphicsLayer { this.rotationY = 180f }
+                            Column(modifier = Modifier.fillMaxSize()) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Column(modifier = Modifier.fillMaxSize()) {
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Text(text = item.title, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1, modifier = Modifier.weight(1f))
-                                            IconButton(onClick = { flippedItemIndex = null }, modifier = Modifier.size(24.dp)) {
-                                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Flip", tint = Color.LightGray, modifier = Modifier.size(16.dp))
+                                    Text(
+                                        text = item.title,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White,
+                                        maxLines = 1,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    IconButton(
+                                        onClick = { flippedItemIndex = null },
+                                        modifier = Modifier.size(24.dp)
+                                    ) {
+                                        Icon(
+                                            Icons.AutoMirrored.Filled.ArrowBack,
+                                            contentDescription = "Flip",
+                                            tint = Color.LightGray,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(6.dp))
+                                LazyColumn(
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentPadding = PaddingValues(vertical = 4.dp)
+                                ) {
+                                    itemsIndexed(item.songsOrEpisodes) { sIdx, entry ->
+                                        when (entry) {
+                                            is SongEntity -> {
+                                                Row(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .clickable {
+                                                            viewModel.playSong(
+                                                                entry,
+                                                                item.songsOrEpisodes.filterIsInstance<SongEntity>().drop(sIdx)
+                                                            )
+                                                        }
+                                                        .padding(vertical = 6.dp),
+                                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Text(
+                                                        text = "${sIdx + 1}. ${entry.title}",
+                                                        fontSize = 11.sp,
+                                                        color = Color.White,
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis,
+                                                        modifier = Modifier.weight(1f)
+                                                    )
+                                                }
                                             }
-                                        }
-                                        Spacer(modifier = Modifier.height(6.dp))
-                                        LazyColumn(
-                                            modifier = Modifier.fillMaxSize(),
-                                            contentPadding = PaddingValues(vertical = 4.dp)
-                                        ) {
-                                            itemsIndexed(item.songsOrEpisodes) { sIdx, entry ->
-                                                when (entry) {
-                                                    is SongEntity -> {
-                                                        Row(
-                                                            modifier = Modifier
-                                                                .fillMaxWidth()
-                                                                .clickable { viewModel.playSong(entry, item.songsOrEpisodes.filterIsInstance<SongEntity>().drop(sIdx)) }
-                                                                .padding(vertical = 6.dp),
-                                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                                            verticalAlignment = Alignment.CenterVertically
-                                                        ) {
-                                                            Text(text = "${sIdx + 1}. ${entry.title}", fontSize = 11.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                                                        }
-                                                    }
-                                                    is TvEpisodeEntity -> {
-                                                        Row(
-                                                            modifier = Modifier
-                                                                .fillMaxWidth()
-                                                                .clickable { viewModel.playTvEpisode(entry) }
-                                                                .padding(vertical = 6.dp),
-                                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                                            verticalAlignment = Alignment.CenterVertically
-                                                        ) {
-                                                            Text(text = "S${entry.seasonNumber}E${entry.episodeNumber}: ${entry.title}", fontSize = 11.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                                                        }
-                                                    }
-                                                    is MovieEntity -> {
-                                                        Column(modifier = Modifier.padding(8.dp)) {
-                                                            Text(text = entry.title, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                                                            Text(text = "Cast: ${entry.artists}", fontSize = 10.sp, color = Color.Gray)
-                                                            Spacer(modifier = Modifier.height(8.dp))
-                                                            Button(onClick = { viewModel.playMovie(entry) }) {
-                                                                Text("Play Movie")
-                                                            }
-                                                        }
+                                            is TvEpisodeEntity -> {
+                                                Row(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .clickable { viewModel.playTvEpisode(entry) }
+                                                        .padding(vertical = 6.dp),
+                                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Text(
+                                                        text = "S${entry.seasonNumber}E${entry.episodeNumber}: ${entry.title}",
+                                                        fontSize = 11.sp,
+                                                        color = Color.White,
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis,
+                                                        modifier = Modifier.weight(1f)
+                                                    )
+                                                }
+                                            }
+                                            is MovieEntity -> {
+                                                Column(modifier = Modifier.padding(8.dp)) {
+                                                    Text(text = entry.title, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                                    Text(text = "Cast: ${entry.artists}", fontSize = 10.sp, color = Color.Gray)
+                                                    Spacer(modifier = Modifier.height(8.dp))
+                                                    Button(onClick = { viewModel.playMovie(entry) }) {
+                                                        Text("Play Movie")
                                                     }
                                                 }
                                             }
                                         }
                                     }
                                 }
+                            }
+                        }
+                    } else {
+                        // Front of Cover
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(Color(0xFF2C2C2E))
+                                .border(1.dp, Color(0xFF48484A), RoundedCornerShape(8.dp)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (item.artworkUri.isNotBlank()) {
+                                AsyncImage(
+                                    model = item.artworkUri,
+                                    contentDescription = item.title,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize()
+                                )
                             } else {
-                                // Front of Cover: Vertical/Square Artwork & Title
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(Color(0xFF2C2C2E))
-                                        .border(1.dp, Color(0xFF48484A), RoundedCornerShape(8.dp)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    if (item.artworkUri.isNotBlank()) {
-                                        AsyncImage(
-                                            model = item.artworkUri,
-                                            contentDescription = item.title,
-                                            contentScale = ContentScale.Crop,
-                                            modifier = Modifier.fillMaxSize()
-                                        )
-                                    } else {
-                                        Icon(
-                                            imageVector = if (item.isVertical) Icons.Default.Tv else Icons.Default.MusicNote,
-                                            contentDescription = null,
-                                            tint = Color.Gray,
-                                            modifier = Modifier.size(54.dp)
-                                        )
-                                    }
-                                    Column(
-                                        modifier = Modifier
-                                            .align(Alignment.BottomStart)
-                                            .fillMaxWidth()
-                                            .background(Color.Black.copy(alpha = 0.75f))
-                                            .padding(8.dp)
-                                    ) {
-                                        Text(text = item.title, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                        Text(text = item.subtitle, fontSize = 10.sp, color = Color.LightGray, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                    }
-                                }
+                                Icon(
+                                    imageVector = if (item.isVertical) Icons.Default.Tv else Icons.Default.MusicNote,
+                                    contentDescription = null,
+                                    tint = Color.Gray,
+                                    modifier = Modifier.size(54.dp)
+                                )
+                            }
+                            Column(
+                                modifier = Modifier
+                                    .align(Alignment.BottomStart)
+                                    .fillMaxWidth()
+                                    .background(Color.Black.copy(alpha = 0.75f))
+                                    .padding(8.dp)
+                            ) {
+                                Text(
+                                    text = item.title,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Text(
+                                    text = item.subtitle,
+                                    fontSize = 10.sp,
+                                    color = Color.LightGray,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
                             }
                         }
                     }

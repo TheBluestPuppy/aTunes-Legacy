@@ -52,15 +52,15 @@ fun GamesScreen(
 ) {
     val themeColors = LocalThemeColors.current
     val context = LocalContext.current
+    val importedPackages by viewModel.importedGamePackages.collectAsState()
     val removedPackages by viewModel.removedGamePackages.collectAsState()
     var appToRemove by remember { mutableStateOf<ApplicationInfo?>(null) }
 
-    val installedApps = remember(removedPackages) {
+    val installedApps = remember(importedPackages, removedPackages) {
         val pm: PackageManager = context.packageManager
         val packages = pm.getInstalledApplications(PackageManager.GET_META_DATA)
         packages.filter { app ->
-            !removedPackages.contains(app.packageName) &&
-                    ((app.flags and ApplicationInfo.FLAG_SYSTEM) == 0 || (app.flags and ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0)
+            importedPackages.contains(app.packageName) && !removedPackages.contains(app.packageName)
         }.sortedBy { it.loadLabel(pm).toString() }
     }
 
@@ -71,8 +71,8 @@ fun GamesScreen(
     ) {
         if (installedApps.isEmpty()) {
             EmptyMediaNotice(
-                title = "No Games / Apps Found",
-                subtitle = "Import or add apps via Settings > Add Media to Library."
+                title = "No Games / App Shortcuts Added",
+                subtitle = "Tap Settings > Add Media to Library > Games (Apps) to select app shortcuts for this tab."
             )
         } else {
             LazyVerticalGrid(

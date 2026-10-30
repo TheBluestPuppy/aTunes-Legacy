@@ -99,6 +99,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _removedGamePackages.value = _removedGamePackages.value + packageName
     }
 
+    private val _importedGamePackages = MutableStateFlow<Set<String>>(emptySet())
+    val importedGamePackages: StateFlow<Set<String>> = _importedGamePackages.asStateFlow()
+
+    fun addGameShortcuts(packageNames: List<String>) {
+        _importedGamePackages.value = _importedGamePackages.value + packageNames
+    }
+
     private val _musicSubTab = MutableStateFlow(MusicSubTab.SONGS)
     val musicSubTab: StateFlow<MusicSubTab> = _musicSubTab.asStateFlow()
 
@@ -298,9 +305,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     init {
         checkUserAuth()
-        viewModelScope.launch {
-            mediaRepository.clearAllMedia()
-        }
     }
 
     // --- USER INTERACTION HANDLERS ---
@@ -383,6 +387,26 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun updateSong(song: SongEntity) {
         viewModelScope.launch {
             mediaRepository.updateSong(song)
+            if (song.albumTitle.isNotBlank() && song.albumTitle != "Unknown Album") {
+                val existingAlbum = mediaRepository.getAlbumByTitle(song.albumTitle)
+                if (existingAlbum == null) {
+                    mediaRepository.insertAlbum(
+                        AlbumEntity(
+                            title = song.albumTitle,
+                            albumArtist = song.albumArtist.ifBlank { song.artist },
+                            genre = song.genre,
+                            releaseYear = song.year,
+                            albumCoverUri = song.artworkUri
+                        )
+                    )
+                } else {
+                    val updated = existingAlbum.copy(
+                        albumArtist = if (existingAlbum.albumArtist.isBlank() || existingAlbum.albumArtist == "Unknown Artist") song.albumArtist else existingAlbum.albumArtist,
+                        albumCoverUri = existingAlbum.albumCoverUri.ifBlank { song.artworkUri }
+                    )
+                    mediaRepository.updateAlbum(updated)
+                }
+            }
             _editingSong.value = null
         }
     }
@@ -930,6 +954,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     ImportCategory.MUSIC -> {
                         val song = MediaImportHelper.createSongEntity(context, uri)
                         mediaRepository.insertSong(song)
+                        if (song.albumTitle.isNotBlank() && song.albumTitle != "Unknown Album") {
+                            val existingAlbum = mediaRepository.getAlbumByTitle(song.albumTitle)
+                            if (existingAlbum == null) {
+                                mediaRepository.insertAlbum(
+                                    AlbumEntity(
+                                        title = song.albumTitle,
+                                        albumArtist = song.albumArtist.ifBlank { song.artist },
+                                        genre = song.genre,
+                                        releaseYear = song.year,
+                                        albumCoverUri = song.artworkUri
+                                    )
+                                )
+                            }
+                        }
                     }
                     ImportCategory.TV_SHOWS -> {
                         val episode = MediaImportHelper.createTvEpisodeEntity(context, uri)
@@ -942,6 +980,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     ImportCategory.PODCASTS -> {
                         val episode = MediaImportHelper.createPodcastEpisodeEntity(context, uri)
                         mediaRepository.insertPodcastEpisode(episode)
+                        val podcastName = episode.podcastName.ifBlank { "Unspecified Podcast" }
+                        val existingShow = mediaRepository.getPodcastShowByTitle(podcastName)
+                        if (existingShow == null) {
+                            mediaRepository.insertPodcastShow(
+                                PodcastShowEntity(
+                                    title = podcastName,
+                                    creatorHost = "Unknown Creator",
+                                    category = "Podcast",
+                                    description = "Imported podcast show",
+                                    logoThumbnailUri = ""
+                                )
+                            )
+                        }
                     }
                     ImportCategory.AUDIOBOOKS -> {
                         val audiobook = MediaImportHelper.createAudiobookEntity(context, uri)

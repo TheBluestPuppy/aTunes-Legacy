@@ -104,6 +104,7 @@ class MediaRepository(
     // --- PODCAST SHOWS & EPISODES & CASCADING UPDATE ---
     fun getAllPodcastShows(): Flow<List<PodcastShowEntity>> = podcastDao.getAllPodcastShows()
     suspend fun getPodcastShowById(id: Long): PodcastShowEntity? = podcastDao.getPodcastShowById(id)
+    suspend fun getPodcastShowByTitle(title: String): PodcastShowEntity? = podcastDao.getPodcastShowByTitle(title)
     suspend fun insertPodcastShow(show: PodcastShowEntity): Long = podcastDao.insertPodcastShow(show)
     suspend fun updatePodcastShow(show: PodcastShowEntity) = podcastDao.updatePodcastShow(show)
     suspend fun deletePodcastShow(show: PodcastShowEntity) = podcastDao.deletePodcastShow(show)

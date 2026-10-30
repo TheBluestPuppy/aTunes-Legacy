@@ -27,17 +27,36 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.SkipNext
+import androidx.compose.material.icons.outlined.Book
+import androidx.compose.material.icons.outlined.Image
+import androidx.compose.material.icons.outlined.Mic
+import androidx.compose.material.icons.outlined.Movie
+import androidx.compose.material.icons.outlined.MusicNote
+import androidx.compose.material.icons.outlined.Podcasts
+import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.outlined.SportsEsports
+import androidx.compose.material.icons.outlined.Tv
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import coil.compose.AsyncImage
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -80,6 +99,7 @@ import com.example.atuneslegacy.ui.theme.ITunesTopBarEnd
 import com.example.atuneslegacy.ui.theme.ITunesTopBarStart
 import com.example.atuneslegacy.ui.viewmodel.MainViewModel
 
+@OptIn(androidx.media3.common.util.UnstableApi::class)
 @Composable
 fun MainScreen(
     viewModel: MainViewModel,
@@ -196,12 +216,95 @@ fun MainScreen(
                     )
                 }
 
+                // Floating Mini Player Card for Apple Music Theme
+                val currentMedia by viewModel.mediaPlayerManager.currentMedia.collectAsState()
+                val isPlaying by viewModel.mediaPlayerManager.isPlaying.collectAsState()
+
+                if (themeColors.isAppleMusic && currentMedia != null && !showVideoPlayer && !showMusicPlayer) {
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = themeColors.surface,
+                        border = androidx.compose.foundation.BorderStroke(0.5.dp, themeColors.surfaceBorder),
+                        shadowElevation = 6.dp,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 4.dp)
+                            .clickable { viewModel.mediaPlayerManager.showMusicPlayer() }
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(40.dp)
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(themeColors.background),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    if (currentMedia?.artworkUri?.isNotBlank() == true) {
+                                        AsyncImage(
+                                            model = currentMedia?.artworkUri,
+                                            contentDescription = null,
+                                            contentScale = ContentScale.Crop,
+                                            modifier = Modifier.fillMaxSize()
+                                        )
+                                    } else {
+                                        Icon(Icons.Default.MusicNote, contentDescription = null, tint = themeColors.primaryAccent, modifier = Modifier.size(20.dp))
+                                    }
+                                }
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = currentMedia?.title ?: "",
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = themeColors.textPrimary,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Text(
+                                        text = currentMedia?.subtitle ?: "",
+                                        fontSize = 12.sp,
+                                        color = themeColors.textSecondary,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                IconButton(onClick = { viewModel.mediaPlayerManager.togglePlayPause() }) {
+                                    Icon(
+                                        imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                                        contentDescription = "Play/Pause",
+                                        tint = themeColors.textPrimary,
+                                        modifier = Modifier.size(26.dp)
+                                    )
+                                }
+                                IconButton(onClick = { viewModel.mediaPlayerManager.playNext() }) {
+                                    Icon(
+                                        imageVector = Icons.Default.SkipNext,
+                                        contentDescription = "Next",
+                                        tint = themeColors.textPrimary,
+                                        modifier = Modifier.size(26.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
                 HorizontalDivider(color = themeColors.topBarBorder, thickness = 0.5.dp)
 
                 // Scrollable Navigation Tabs
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .background(if (themeColors.isAppleMusic) themeColors.surface else Color.Transparent)
                         .horizontalScroll(rememberScrollState())
                         .padding(horizontal = 8.dp, vertical = 6.dp),
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -211,13 +314,31 @@ fun MainScreen(
                         val isSelected = currentTab == tab
                         val shape = RoundedCornerShape(6.dp)
 
+                        val icon = if (themeColors.isAppleMusic) {
+                            when (tab) {
+                                MainTab.MUSIC -> Icons.Outlined.MusicNote
+                                MainTab.TV_SHOWS -> Icons.Outlined.Tv
+                                MainTab.MOVIES -> Icons.Outlined.Movie
+                                MainTab.PODCASTS -> Icons.Outlined.Podcasts
+                                MainTab.AUDIOBOOKS -> Icons.Outlined.Book
+                                MainTab.PHOTOS -> Icons.Outlined.Image
+                                MainTab.RECORDINGS -> Icons.Outlined.Mic
+                                MainTab.GAMES -> Icons.Outlined.SportsEsports
+                                MainTab.SETTINGS -> Icons.Outlined.Settings
+                            }
+                        } else {
+                            tab.icon
+                        }
+
                         Column(
                             modifier = Modifier
                                 .width(74.dp)
                                 .height(42.dp)
                                 .clip(shape)
                                 .background(
-                                    brush = if (isSelected) {
+                                    brush = if (themeColors.isAppleMusic) {
+                                        Brush.verticalGradient(listOf(themeColors.surface, themeColors.surface))
+                                    } else if (isSelected) {
                                         Brush.verticalGradient(
                                             listOf(themeColors.activeSegmentStart, themeColors.activeSegmentEnd)
                                         )
@@ -228,7 +349,7 @@ fun MainScreen(
                                     }
                                 )
                                 .border(
-                                    width = 0.5.dp,
+                                    width = if (themeColors.isAppleMusic) 0.dp else 0.5.dp,
                                     color = if (isSelected) themeColors.primaryAccent else themeColors.topBarBorder,
                                     shape = shape
                                 )
@@ -237,15 +358,23 @@ fun MainScreen(
                             verticalArrangement = Arrangement.Center
                         ) {
                             Icon(
-                                imageVector = tab.icon,
+                                imageVector = icon,
                                 contentDescription = tab.title,
-                                tint = if (isSelected) Color.White else themeColors.textPrimary,
-                                modifier = Modifier.size(16.dp)
+                                tint = if (isSelected) {
+                                    if (themeColors.isAppleMusic) themeColors.primaryAccent else Color.White
+                                } else {
+                                    if (!themeColors.isDark) Color.Black else Color.White
+                                },
+                                modifier = Modifier.size(18.dp)
                             )
                             Spacer(modifier = Modifier.height(2.dp))
                             Text(
                                 text = tab.title,
-                                color = if (isSelected) Color.White else themeColors.textPrimary,
+                                color = if (isSelected) {
+                                    if (themeColors.isAppleMusic) themeColors.primaryAccent else Color.White
+                                } else {
+                                    if (!themeColors.isDark) Color.Black else Color.White
+                                },
                                 fontSize = 10.sp,
                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                                 textAlign = TextAlign.Center,
@@ -297,14 +426,51 @@ fun MainScreen(
     if (showAddMediaDialog) {
         AddMediaDialog(
             onDismiss = { viewModel.setShowAddMediaDialog(false) },
-            onImportFiles = { uris, category -> viewModel.importFiles(uris, category) }
+            onImportFiles = { uris, category -> viewModel.importFiles(uris, category) },
+            onSelectGamesApps = { packageNames -> viewModel.addGameShortcuts(packageNames) }
         )
+    }
+
+    // Metadata Suggestion Lists
+    val artistSuggestions = remember(songs, albums) {
+        (songs.map { it.artist } + songs.map { it.albumArtist } + albums.map { it.albumArtist })
+            .filter { it.isNotBlank() && it != "Unknown Artist" }.distinct()
+    }
+    val albumSuggestions = remember(songs, albums) {
+        (songs.map { it.albumTitle } + albums.map { it.title })
+            .filter { it.isNotBlank() && it != "Unknown Album" }.distinct()
+    }
+    val genreSuggestions = remember(songs, albums, audiobooks) {
+        (songs.map { it.genre } + albums.map { it.genre } + audiobooks.map { it.genre })
+            .filter { it.isNotBlank() && it != "Unspecified" }.distinct()
+    }
+    val composerSuggestions = remember(songs) {
+        songs.map { it.composer }.filter { it.isNotBlank() }.distinct()
+    }
+    val tvShowSuggestions = remember(tvShows) {
+        tvShows.map { it.title }.filter { it.isNotBlank() }.distinct()
+    }
+    val podcastSuggestions = remember(podcasts) {
+        podcasts.map { it.title }.filter { it.isNotBlank() }.distinct()
+    }
+    val creatorSuggestions = remember(podcasts) {
+        podcasts.map { it.creatorHost }.filter { it.isNotBlank() }.distinct()
+    }
+    val authorSuggestions = remember(audiobooks) {
+        audiobooks.map { it.author }.filter { it.isNotBlank() }.distinct()
+    }
+    val bookSeriesSuggestions = remember(audiobooks) {
+        audiobooks.map { it.bookSeries }.filter { it.isNotBlank() && it != "Unspecified" }.distinct()
     }
 
     // Metadata Editing Dialogs
     editingSong?.let { song ->
         SongMetadataDialog(
             song = song,
+            artistSuggestions = artistSuggestions,
+            albumSuggestions = albumSuggestions,
+            genreSuggestions = genreSuggestions,
+            composerSuggestions = composerSuggestions,
             onDismiss = { viewModel.setEditingSong(null) },
             onSave = { updated -> viewModel.updateSong(updated) },
             onDelete = { viewModel.deleteSong(song) }
@@ -314,6 +480,9 @@ fun MainScreen(
     editingAlbum?.let { album ->
         AlbumMetadataDialog(
             album = album,
+            artistSuggestions = artistSuggestions,
+            albumSuggestions = albumSuggestions,
+            genreSuggestions = genreSuggestions,
             onDismiss = { viewModel.setEditingAlbum(null) },
             onSave = { oldTitle, updated -> viewModel.updateAlbum(oldTitle, updated) },
             onDelete = { viewModel.deleteAlbum(album) }
@@ -323,6 +492,7 @@ fun MainScreen(
     editingTvShow?.let { show ->
         TvShowMetadataDialog(
             show = show,
+            showSuggestions = tvShowSuggestions,
             onDismiss = { viewModel.setEditingTvShow(null) },
             onSave = { oldTitle, updated -> viewModel.updateTvShow(oldTitle, updated) },
             onDelete = { viewModel.deleteTvShow(show) }
@@ -332,6 +502,7 @@ fun MainScreen(
     editingTvEpisode?.let { episode ->
         TvEpisodeMetadataDialog(
             episode = episode,
+            showSuggestions = tvShowSuggestions,
             onDismiss = { viewModel.setEditingTvEpisode(null) },
             onSave = { updated -> viewModel.updateTvEpisode(updated) },
             onDelete = { viewModel.deleteTvEpisode(episode) }
@@ -350,6 +521,8 @@ fun MainScreen(
     editingPodcastShow?.let { show ->
         PodcastShowMetadataDialog(
             show = show,
+            podcastSuggestions = podcastSuggestions,
+            creatorSuggestions = creatorSuggestions,
             onDismiss = { viewModel.setEditingPodcastShow(null) },
             onSave = { oldName, updated -> viewModel.updatePodcastShow(oldName, updated) },
             onDelete = { viewModel.deletePodcastShow(show) }
@@ -359,6 +532,7 @@ fun MainScreen(
     editingPodcastEpisode?.let { episode ->
         PodcastEpisodeMetadataDialog(
             episode = episode,
+            podcastSuggestions = podcastSuggestions,
             onDismiss = { viewModel.setEditingPodcastEpisode(null) },
             onSave = { updated -> viewModel.updatePodcastEpisode(updated) },
             onDelete = { viewModel.deletePodcastEpisode(episode) }
@@ -368,6 +542,9 @@ fun MainScreen(
     editingAudiobook?.let { book ->
         AudiobookMetadataDialog(
             book = book,
+            authorSuggestions = authorSuggestions,
+            seriesSuggestions = bookSeriesSuggestions,
+            genreSuggestions = genreSuggestions,
             onDismiss = { viewModel.setEditingAudiobook(null) },
             onSave = { updated -> viewModel.updateAudiobook(updated) },
             onDelete = { viewModel.deleteAudiobook(book) }
@@ -377,6 +554,8 @@ fun MainScreen(
     editingBookSeries?.let { series ->
         BookSeriesMetadataDialog(
             series = series,
+            seriesSuggestions = bookSeriesSuggestions,
+            genreSuggestions = genreSuggestions,
             onDismiss = { viewModel.setEditingBookSeries(null) },
             onSave = { oldTitle, updated -> viewModel.updateBookSeries(oldTitle, updated) },
             onDelete = { viewModel.deleteBookSeries(series) }
