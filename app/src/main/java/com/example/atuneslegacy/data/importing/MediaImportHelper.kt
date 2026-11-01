@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.media.MediaMetadataRetriever
 import android.net.Uri
+import android.os.Environment
 import android.provider.OpenableColumns
 import com.example.atuneslegacy.data.local.entity.AlbumEntity
 import com.example.atuneslegacy.data.local.entity.AudiobookEntity
@@ -14,8 +15,10 @@ import com.example.atuneslegacy.data.local.entity.PodcastShowEntity
 import com.example.atuneslegacy.data.local.entity.SongEntity
 import com.example.atuneslegacy.data.local.entity.TvEpisodeEntity
 import com.example.atuneslegacy.data.local.entity.TvShowEntity
+import com.example.atuneslegacy.data.repository.MediaRepository
 import java.io.File
 import java.io.FileOutputStream
+import kotlinx.coroutines.flow.first
 
 enum class ImportCategory {
     MUSIC, TV_SHOWS, MOVIES, PODCASTS, AUDIOBOOKS, GAMES
@@ -191,7 +194,97 @@ object MediaImportHelper {
         )
     }
 
-    // Process imported URI into SongEntity with "Unspecified" / "Unknown Artist" fallback
+    suspend fun cleanupMissingFiles(context: Context, repository: MediaRepository) {
+        try {
+            val allSongs = repository.getAllSongs().first()
+            for (song in allSongs) {
+                var exists = false
+                val uri = Uri.parse(song.uri)
+
+                if (uri.scheme == "file") {
+                    val filePath = uri.path ?: song.filePath
+                    val file = File(filePath)
+                    exists = file.exists()
+                } else if (uri.scheme == "content") {
+                    try {
+                        context.contentResolver.openInputStream(uri)?.use {
+                            exists = true
+                        }
+                    } catch (e: Exception) {
+                        exists = false
+                    }
+                } else {
+                    val file = File(song.filePath)
+                    exists = file.exists()
+                }
+
+                if (!exists) {
+                    repository.deleteSong(song)
+
+                    if (song.albumTitle.isNotBlank()) {
+                        val remainingSongs = repository.getSongsByAlbum(song.albumTitle).first()
+                        if (remainingSongs.isEmpty()) {
+                            val album = repository.getAlbumByTitle(song.albumTitle)
+                            if (album != null) {
+                                repository.deleteAlbum(album)
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    suspend fun scanAndImportATunesDirectory(context: Context, repository: MediaRepository) {
+        cleanupMissingFiles(context, repository)
+
+        val musicDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC)
+        val aTunesDir = File(musicDir, "aTunes Directory")
+        if (!aTunesDir.exists()) {
+            aTunesDir.mkdirs()
+            return
+        }
+
+        val audioExtensions = setOf("mp3", "m4a", "flac", "wav", "aac", "ogg", "m4b", "opus")
+
+        suspend fun scanRecursive(dir: File) {
+            val files = dir.listFiles() ?: return
+            for (file in files) {
+                if (file.isDirectory) {
+                    scanRecursive(file)
+                } else if (file.isFile) {
+                    val ext = file.extension.lowercase()
+                    if (audioExtensions.contains(ext)) {
+                        val fileUriStr = Uri.fromFile(file).toString()
+                        val existingSong = repository.getSongByFilePath(fileUriStr)
+                        if (existingSong == null) {
+                            val songEntity = createSongEntity(context, Uri.fromFile(file))
+                            repository.insertSong(songEntity)
+
+                            if (songEntity.albumTitle.isNotBlank()) {
+                                val existingAlbum = repository.getAlbumByTitle(songEntity.albumTitle)
+                                if (existingAlbum == null) {
+                                    val newAlbum = AlbumEntity(
+                                        title = songEntity.albumTitle,
+                                        albumArtist = songEntity.albumArtist,
+                                        genre = songEntity.genre,
+                                        releaseYear = songEntity.year,
+                                        albumCoverUri = songEntity.artworkUri
+                                    )
+                                    repository.insertAlbum(newAlbum)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        scanRecursive(aTunesDir)
+    }
+
     fun createSongEntity(context: Context, uri: Uri): SongEntity {
         takePersistablePermission(context, uri)
         val extracted = extractMetadata(context, uri)

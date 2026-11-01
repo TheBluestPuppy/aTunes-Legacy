@@ -8,6 +8,7 @@ import android.content.res.Configuration
 import androidx.activity.compose.BackHandler
 import androidx.compose.ui.platform.LocalConfiguration
 import com.example.atuneslegacy.ui.components.CoverFlowScreen
+import com.example.atuneslegacy.ui.components.BulkTagEditDialog
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -29,6 +30,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Pause
@@ -336,6 +340,78 @@ fun MainScreen(
                             }
                         }
                     }
+                }
+
+                val isMultiSelectMode by viewModel.isMultiSelectMode.collectAsState()
+                val selectedSongIds by viewModel.selectedSongIds.collectAsState()
+                val showBulkEditDialog by viewModel.showBulkEditDialog.collectAsState()
+
+                if (isMultiSelectMode) {
+                    Surface(
+                        color = themeColors.surface,
+                        border = androidx.compose.foundation.BorderStroke(0.5.dp, themeColors.surfaceBorder),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "${selectedSongIds.size} selected",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = themeColors.textPrimary
+                            )
+
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                OutlinedButton(
+                                    onClick = {
+                                        if (selectedSongIds.size == 1) {
+                                            val singleId = selectedSongIds.first()
+                                            val songToEdit = songs.firstOrNull { it.id == singleId }
+                                            if (songToEdit != null) {
+                                                viewModel.clearSongSelection()
+                                                viewModel.setEditingSong(songToEdit)
+                                            }
+                                        } else {
+                                            viewModel.setShowBulkEditDialog(true)
+                                        }
+                                    },
+                                    modifier = Modifier.height(32.dp)
+                                ) {
+                                    Text(if (selectedSongIds.size <= 1) "Edit Metadata" else "Bulk Edit Tags", fontSize = 11.sp)
+                                }
+
+                                Button(
+                                    onClick = { viewModel.deleteSelectedSongs() },
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color.Red),
+                                    modifier = Modifier.height(32.dp)
+                                ) {
+                                    Text("Delete", fontSize = 11.sp)
+                                }
+
+                                OutlinedButton(
+                                    onClick = { viewModel.clearSongSelection() },
+                                    modifier = Modifier.height(32.dp)
+                                ) {
+                                    Text("Cancel", fontSize = 11.sp)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (showBulkEditDialog) {
+                    BulkTagEditDialog(
+                        selectedCount = selectedSongIds.size,
+                        onDismiss = { viewModel.setShowBulkEditDialog(false) },
+                        onSave = { artist, album, genre, yearStr ->
+                            viewModel.bulkUpdateSongsMetadata(artist, album, genre, yearStr)
+                        }
+                    )
                 }
 
                 HorizontalDivider(color = themeColors.topBarBorder, thickness = 0.5.dp)

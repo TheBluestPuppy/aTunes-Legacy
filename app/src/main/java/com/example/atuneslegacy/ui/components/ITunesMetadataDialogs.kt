@@ -5,6 +5,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,6 +13,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -25,6 +27,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.Movie
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
@@ -563,8 +567,9 @@ fun TvShowMetadataDialog(
     var releaseYear by remember(show) { mutableStateOf(show.releaseYear.toString()) }
     var parentalRating by remember(show) { mutableStateOf(show.parentalRating) }
     var logoUri by remember(show) { mutableStateOf(show.logoThumbnailUri) }
+    var description by remember(show) { mutableStateOf(show.description) }
+    var starRating by remember(show) { mutableIntStateOf(show.starRating) }
 
-    val scope = rememberCoroutineScope()
     val imagePicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri ->
@@ -582,26 +587,13 @@ fun TvShowMetadataDialog(
                     title = title.trim(),
                     releaseYear = releaseYear.toIntOrNull() ?: show.releaseYear,
                     parentalRating = parentalRating.trim(),
-                    logoThumbnailUri = logoUri
+                    logoThumbnailUri = logoUri,
+                    description = description.trim(),
+                    starRating = starRating
                 )
             )
         },
-        showPullMetadata = true,
-        onPullMetadata = {
-            scope.launch {
-                val res = TmdApi.searchTvShow(title)
-                if (res != null) {
-                    title = res.name ?: title
-                    if (!res.first_air_date.isNullOrBlank() && res.first_air_date.length >= 4) {
-                        releaseYear = res.first_air_date.take(4)
-                    }
-                    if (!res.poster_path.isNullOrBlank()) {
-                        logoUri = TmdApi.getImageUrl(res.poster_path)
-                    }
-                    parentalRating = "TV-MA"
-                }
-            }
-        }
+        showPullMetadata = false
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(
@@ -653,6 +645,161 @@ fun TvShowMetadataDialog(
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
+            OutlinedTextField(
+                value = description,
+                onValueChange = { description = it },
+                label = { Text("Description") },
+                modifier = Modifier.fillMaxWidth(),
+                minLines = 2
+            )
+
+            // Star Rating (0-5 stars)
+            Column {
+                Text("Star Rating", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    for (i in 1..5) {
+                        val isSelected = i <= starRating
+                        Text(
+                            text = if (isSelected) "★" else "☆",
+                            fontSize = 24.sp,
+                            color = if (isSelected) Color(0xFFEAB308) else Color.Gray,
+                            modifier = Modifier
+                                .clickable { starRating = i }
+                                .padding(4.dp)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+// MOVIE METADATA DIALOG
+@Composable
+fun MovieMetadataDialog(
+    movie: MovieEntity,
+    artistSuggestions: List<String> = emptyList(),
+    onDismiss: () -> Unit,
+    onSave: (MovieEntity) -> Unit,
+    onDelete: (() -> Unit)? = null
+) {
+    var title by remember(movie) { mutableStateOf(movie.title) }
+    var artists by remember(movie) { mutableStateOf(movie.artists) }
+    var releaseYear by remember(movie) { mutableStateOf(movie.releaseYear.toString()) }
+    var parentalRating by remember(movie) { mutableStateOf(movie.parentalRating) }
+    var posterUri by remember(movie) { mutableStateOf(movie.thumbnailUri) }
+    var description by remember(movie) { mutableStateOf(movie.description) }
+    var starRating by remember(movie) { mutableIntStateOf(movie.starRating) }
+
+    val imagePicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri ->
+        uri?.let { posterUri = it.toString() }
+    }
+
+    ITunesDialogContainer(
+        title = "Edit Movie Info",
+        onDismiss = onDismiss,
+        onDelete = onDelete,
+        onSave = {
+            onSave(
+                movie.copy(
+                    title = title.trim(),
+                    artists = artists.trim(),
+                    releaseYear = releaseYear.toIntOrNull() ?: movie.releaseYear,
+                    parentalRating = parentalRating.trim(),
+                    thumbnailUri = posterUri,
+                    description = description.trim(),
+                    starRating = starRating
+                )
+            )
+        },
+        showPullMetadata = false
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(72.dp)
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(Color(0xFFE2E6EE))
+                        .border(1.dp, Color(0xFFC0C5CE), RoundedCornerShape(6.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (posterUri.isNotBlank()) {
+                        AsyncImage(
+                            model = posterUri,
+                            contentDescription = "Poster",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    } else {
+                        Icon(imageVector = Icons.Default.Movie, contentDescription = null, tint = Color.Gray)
+                    }
+                }
+                OutlinedButton(onClick = { imagePicker.launch("image/*") }) {
+                    Text("Select Movie Poster...", fontSize = 12.sp)
+                }
+            }
+
+            OutlinedTextField(
+                value = title,
+                onValueChange = { title = it },
+                label = { Text("Movie Title") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+            AutoSuggestOutlinedTextField(
+                value = artists,
+                onValueChange = { artists = it },
+                label = "Cast / Artists",
+                suggestions = artistSuggestions
+            )
+            OutlinedTextField(
+                value = releaseYear,
+                onValueChange = { releaseYear = it },
+                label = { Text("Release Year") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+            OutlinedTextField(
+                value = parentalRating,
+                onValueChange = { parentalRating = it },
+                label = { Text("Parental Rating (e.g. PG-13)") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+            OutlinedTextField(
+                value = description,
+                onValueChange = { description = it },
+                label = { Text("Description") },
+                modifier = Modifier.fillMaxWidth(),
+                minLines = 2
+            )
+
+            // Star Rating (0-5 stars)
+            Column {
+                Text("Star Rating", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    for (i in 1..5) {
+                        val isSelected = i <= starRating
+                        Text(
+                            text = if (isSelected) "★" else "☆",
+                            fontSize = 24.sp,
+                            color = if (isSelected) Color(0xFFEAB308) else Color.Gray,
+                            modifier = Modifier
+                                .clickable { starRating = i }
+                                .padding(4.dp)
+                        )
+                    }
+                }
+            }
         }
     }
 }

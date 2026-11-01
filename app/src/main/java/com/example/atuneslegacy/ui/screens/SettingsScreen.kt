@@ -98,6 +98,7 @@ fun SettingsScreen(
 
     if (showSpotifyBrowser) {
         SpotifyDownloaderBrowser(
+            viewModel = viewModel,
             onDismiss = { showSpotifyBrowser = false },
             modifier = modifier
         )

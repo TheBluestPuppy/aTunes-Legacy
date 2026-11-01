@@ -123,7 +123,6 @@ fun PreviewMovieCard() {
                     parentalRating = "PG-13",
                     uri = ""
                 ),
-                isGrid = true,
                 onClick = {}
             )
         }

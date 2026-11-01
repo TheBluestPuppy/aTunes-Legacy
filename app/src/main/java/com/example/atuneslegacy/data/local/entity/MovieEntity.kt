@@ -13,5 +13,7 @@ data class MovieEntity(
     val parentalRating: String = "",
     val thumbnailUri: String = "",
     val videoPath: String = "",
-    val uri: String
+    val uri: String,
+    val description: String = "",
+    val starRating: Int = 0
 )

@@ -6,6 +6,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -80,8 +81,7 @@ fun PodcastsScreen(
                     if (podcastShows.isEmpty()) {
                         EmptyMediaNotice("No Podcast Shows", "Subscribe or import podcast shows to your library.")
                     } else {
-                        LazyVerticalGrid(
-                            columns = GridCells.Adaptive(minSize = 130.dp),
+                        LazyColumn(
                             contentPadding = PaddingValues(12.dp),
                             modifier = Modifier.fillMaxSize()
                         ) {
@@ -89,7 +89,8 @@ fun PodcastsScreen(
                                 PodcastShowCard(
                                     show = show,
                                     onClick = { viewModel.selectPodcastShow(show) },
-                                    onLongClick = { viewModel.setEditingPodcastShow(show) }
+                                    onLongClick = { viewModel.setEditingPodcastShow(show) },
+                                    modifier = Modifier.padding(vertical = 4.dp).fillMaxWidth()
                                 )
                             }
                         }
@@ -117,12 +118,13 @@ private fun PodcastShowDetailPage(
     viewModel: MainViewModel
 ) {
     val context = LocalContext.current
-
     Column(modifier = Modifier.fillMaxSize()) {
+        // Top Header
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(Color(0xFFE2E6EE))
+                .combinedClickable(onClick = {}, onLongClick = { viewModel.setEditingPodcastShow(show) })
                 .padding(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -131,13 +133,17 @@ private fun PodcastShowDetailPage(
             }
             Spacer(modifier = Modifier.width(16.dp))
             Column {
-                Text(text = show.title, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1C1D21))
-                Text(text = "${show.creatorHost} • ${show.category}", fontSize = 12.sp, color = Color(0xFF606674))
+                Text(text = show.title, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1C1D21))
+                Text(
+                    text = "Host: ${show.creatorHost.ifBlank { "Unknown" }} | Category: ${show.category.ifBlank { "Podcast" }}",
+                    fontSize = 12.sp,
+                    color = Color(0xFF606674)
+                )
             }
         }
 
         if (episodes.isEmpty()) {
-            EmptyMediaNotice("No Episodes Found", "No episodes retrieved for this podcast.")
+            EmptyMediaNotice("No Episodes Found", "No episode files added for this podcast yet.")
         } else {
             val groupedBySeason = episodes.groupBy { it.seasonNumber }
 
@@ -163,32 +169,28 @@ private fun PodcastShowDetailPage(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .combinedClickable(
-                                    onClick = {
-                                        viewModel.playPodcastEpisode(episode)
-                                    },
-                                    onLongClick = {
-                                        viewModel.setEditingPodcastEpisode(episode)
-                                    }
+                                    onClick = { viewModel.playPodcastEpisode(episode) },
+                                    onLongClick = { viewModel.setEditingPodcastEpisode(episode) }
                                 )
                                 .padding(vertical = 10.dp, horizontal = 16.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(
                                 imageVector = Icons.Default.PlayCircle,
-                                contentDescription = "Play",
+                                contentDescription = null,
                                 tint = ITunesAccentBlue,
                                 modifier = Modifier.size(28.dp)
                             )
                             Spacer(modifier = Modifier.width(12.dp))
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = episode.title,
-                                    fontSize = 13.sp,
+                                    text = "Episode ${episode.episodeNumber}: ${episode.title}",
+                                    fontSize = 14.sp,
                                     fontWeight = FontWeight.SemiBold,
                                     color = Color(0xFF1C1D21)
                                 )
                                 Text(
-                                    text = "Episode ${episode.episodeNumber} (Season ${episode.seasonNumber})",
+                                    text = "Podcast: ${episode.podcastName}",
                                     fontSize = 11.sp,
                                     color = Color(0xFF687080)
                                 )
@@ -210,66 +212,71 @@ private fun PodcastCategoriesSubScreen(
     onSelectShow: (PodcastShowEntity) -> Unit,
     viewModel: MainViewModel
 ) {
-    val categories = podcastShows.map { it.category }.filter { it.isNotBlank() }.distinct().sorted()
+    val categories = podcastShows.map { it.category.ifBlank { "Podcast" } }.distinct().sorted()
 
-    Row(modifier = Modifier.fillMaxSize()) {
-        LazyColumn(
-            modifier = Modifier
-                .width(160.dp)
-                .fillMaxSize()
-                .background(Color(0xFFE8EBF0))
-                .border(width = 0.5.dp, color = Color(0xFFC0C5CE))
-        ) {
-            item {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { onSelectCategory(null) }
-                        .background(if (selectedCategory == null) ITunesAccentBlue else Color.Transparent)
-                        .padding(10.dp)
-                ) {
-                    Text(
-                        text = "All Categories (${categories.size})",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = if (selectedCategory == null) Color.White else Color(0xFF2C3038)
-                    )
+    if (selectedCategory != null) {
+        val catShows = podcastShows.filter { (it.category.ifBlank { "Podcast" }) == selectedCategory }
+        Column(modifier = Modifier.fillMaxSize()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color(0xFFE2E6EE))
+                    .padding(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedButton(onClick = { onSelectCategory(null) }) {
+                    Text("← All Categories", fontSize = 11.sp)
                 }
-                HorizontalDivider(color = Color(0xFFD0D4DD))
+                Spacer(modifier = Modifier.width(16.dp))
+                Text(text = selectedCategory, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1C1D21))
             }
-            items(categories) { category ->
-                val isSelected = category.equals(selectedCategory, ignoreCase = true)
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { onSelectCategory(category) }
-                        .background(if (isSelected) ITunesAccentBlue else Color.Transparent)
-                        .padding(10.dp)
-                ) {
-                    Text(
-                        text = category,
-                        fontSize = 12.sp,
-                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                        color = if (isSelected) Color.White else Color(0xFF2C3038)
+            LazyColumn(
+                contentPadding = PaddingValues(12.dp),
+                modifier = Modifier.fillMaxSize()
+            ) {
+                items(catShows) { show ->
+                    PodcastShowCard(
+                        show = show,
+                        onClick = { onSelectShow(show) },
+                        onLongClick = { viewModel.setEditingPodcastShow(show) },
+                        modifier = Modifier.padding(vertical = 4.dp).fillMaxWidth()
                     )
                 }
-                HorizontalDivider(color = Color(0xFFE0E3EA))
             }
         }
-
-        val filteredShows = if (selectedCategory == null) podcastShows else podcastShows.filter { it.category.equals(selectedCategory, ignoreCase = true) }
-
-        LazyVerticalGrid(
-            columns = GridCells.Adaptive(minSize = 130.dp),
-            contentPadding = PaddingValues(12.dp),
-            modifier = Modifier.weight(1f).fillMaxSize()
-        ) {
-            items(filteredShows) { show ->
-                PodcastShowCard(
-                    show = show,
-                    onClick = { onSelectShow(show) },
-                    onLongClick = { viewModel.setEditingPodcastShow(show) }
-                )
+    } else {
+        if (categories.isEmpty()) {
+            EmptyMediaNotice("No Categories", "Add podcast shows to view categories.")
+        } else {
+            LazyColumn(
+                contentPadding = PaddingValues(12.dp),
+                modifier = Modifier.fillMaxSize()
+            ) {
+                items(categories) { cat ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(Color.White)
+                            .clickable { onSelectCategory(cat) }
+                            .padding(16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = cat,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF1C1D21)
+                        )
+                        Icon(
+                            imageVector = Icons.Default.PlayCircle,
+                            contentDescription = null,
+                            tint = Color.Gray,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    HorizontalDivider(color = Color(0xFFE8EBF0), thickness = 0.5.dp)
+                }
             }
         }
     }

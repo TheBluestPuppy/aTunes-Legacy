@@ -10,7 +10,9 @@ data class TvShowEntity(
     val title: String,
     val releaseYear: Int,
     val parentalRating: String = "",
-    val logoThumbnailUri: String = ""
+    val logoThumbnailUri: String = "",
+    val description: String = "",
+    val starRating: Int = 0
 )
 
 @Entity(tableName = "tv_episodes")

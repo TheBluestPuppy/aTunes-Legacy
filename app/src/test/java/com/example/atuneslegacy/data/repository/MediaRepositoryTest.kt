@@ -104,6 +104,7 @@ class FakeMusicDao : MusicDao {
     override fun getMusicSongs(): Flow<List<SongEntity>> = songsFlow.map { list -> list.filter { !it.isMusicVideo } }
     override fun getMusicVideos(): Flow<List<SongEntity>> = songsFlow.map { list -> list.filter { it.isMusicVideo } }
     override suspend fun getSongById(id: Long): SongEntity? = songsMap[id]
+    override suspend fun getSongByFilePath(filePath: String): SongEntity? = songsMap.values.firstOrNull { it.filePath == filePath || it.uri == filePath }
     override fun getSongsByAlbum(albumTitle: String): Flow<List<SongEntity>> = songsFlow.map { list -> list.filter { it.albumTitle == albumTitle } }
 
     override suspend fun insertSong(song: SongEntity): Long {

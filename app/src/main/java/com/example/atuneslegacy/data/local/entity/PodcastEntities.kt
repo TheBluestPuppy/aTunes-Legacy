@@ -11,7 +11,8 @@ data class PodcastShowEntity(
     val creatorHost: String = "",
     val description: String = "",
     val category: String = "",
-    val logoThumbnailUri: String = ""
+    val logoThumbnailUri: String = "",
+    val starRating: Int = 0
 )
 
 @Entity(tableName = "podcast_episodes")

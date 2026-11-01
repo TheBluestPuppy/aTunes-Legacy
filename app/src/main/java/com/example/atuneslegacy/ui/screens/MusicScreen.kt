@@ -177,6 +177,9 @@ fun MusicScreen(
 
 @Composable
 private fun SongsSubScreen(songs: List<SongEntity>, viewModel: MainViewModel) {
+    val isMultiSelectMode by viewModel.isMultiSelectMode.collectAsState()
+    val selectedSongIds by viewModel.selectedSongIds.collectAsState()
+
     if (songs.isEmpty()) {
         EmptyMediaNotice("No Songs Found", "Import audio files to your iTunes library.")
     } else {
@@ -187,8 +190,14 @@ private fun SongsSubScreen(songs: List<SongEntity>, viewModel: MainViewModel) {
                     SongTableRow(
                         song = song,
                         index = index,
-                        onClick = { viewModel.playSong(song, songs) },
-                        onLongClick = { viewModel.setEditingSong(song) }
+                        isMultiSelectMode = isMultiSelectMode,
+                        isChecked = selectedSongIds.contains(song.id),
+                        onCheckedChange = { viewModel.toggleSongSelection(song.id) },
+                        onClick = {
+                            if (isMultiSelectMode) viewModel.toggleSongSelection(song.id)
+                            else viewModel.playSong(song, songs)
+                        },
+                        onLongClick = { viewModel.toggleSongSelection(song.id) }
                     )
                 }
             }
@@ -205,9 +214,12 @@ private fun AlbumsSubScreen(
     viewModel: MainViewModel
 ) {
     val themeColors = LocalThemeColors.current
+    val isMultiSelectMode by viewModel.isMultiSelectMode.collectAsState()
+    val selectedSongIds by viewModel.selectedSongIds.collectAsState()
 
     if (selectedAlbum != null) {
         val albumSongs = songs.filter { it.albumTitle.equals(selectedAlbum.title, ignoreCase = true) }
+            .sortedBy { it.trackNumber }
         val albumTime = formatDuration(albumSongs.sumOf { it.duration })
 
         Column(modifier = Modifier.fillMaxSize()) {
@@ -295,8 +307,14 @@ private fun AlbumsSubScreen(
                     SongTableRow(
                         song = song,
                         index = index,
-                        onClick = { viewModel.playSong(song, albumSongs) },
-                        onLongClick = { viewModel.setEditingSong(song) }
+                        isMultiSelectMode = isMultiSelectMode,
+                        isChecked = selectedSongIds.contains(song.id),
+                        onCheckedChange = { viewModel.toggleSongSelection(song.id) },
+                        onClick = {
+                            if (isMultiSelectMode) viewModel.toggleSongSelection(song.id)
+                            else viewModel.playSong(song, albumSongs)
+                        },
+                        onLongClick = { viewModel.toggleSongSelection(song.id) }
                     )
                 }
             }
@@ -343,6 +361,8 @@ private fun ArtistsSubScreen(
     val themeColors = LocalThemeColors.current
     val artists = songs.map { it.artist }.filter { it.isNotBlank() && it != "Unknown Artist" }.distinct().sorted()
     val editingArtist by viewModel.editingArtist.collectAsState()
+    val isMultiSelectMode by viewModel.isMultiSelectMode.collectAsState()
+    val selectedSongIds by viewModel.selectedSongIds.collectAsState()
 
     if (editingArtist != null) {
         val currentArt = allArtists.firstOrNull { it.name.equals(editingArtist, ignoreCase = true) }?.customArtworkUri ?: ""
@@ -362,6 +382,7 @@ private fun ArtistsSubScreen(
         if (selectedArtistAlbum != null) {
             val album = selectedArtistAlbum!!
             val albumSongs = songs.filter { it.albumTitle.equals(album.title, ignoreCase = true) }
+                .sortedBy { it.trackNumber }
             val albumTime = formatDuration(albumSongs.sumOf { it.duration })
 
             Column(modifier = Modifier.fillMaxSize()) {
@@ -439,8 +460,14 @@ private fun ArtistsSubScreen(
                         SongTableRow(
                             song = song,
                             index = index,
-                            onClick = { viewModel.playSong(song, albumSongs) },
-                            onLongClick = { viewModel.setEditingSong(song) }
+                            isMultiSelectMode = isMultiSelectMode,
+                            isChecked = selectedSongIds.contains(song.id),
+                            onCheckedChange = { viewModel.toggleSongSelection(song.id) },
+                            onClick = {
+                                if (isMultiSelectMode) viewModel.toggleSongSelection(song.id)
+                                else viewModel.playSong(song, albumSongs)
+                            },
+                            onLongClick = { viewModel.toggleSongSelection(song.id) }
                         )
                     }
                 }
@@ -669,6 +696,8 @@ private fun GenresSubScreen(
 ) {
     val themeColors = LocalThemeColors.current
     val genres = songs.map { it.genre }.filter { it.isNotBlank() }.distinct().sorted()
+    val isMultiSelectMode by viewModel.isMultiSelectMode.collectAsState()
+    val selectedSongIds by viewModel.selectedSongIds.collectAsState()
 
     if (selectedGenre != null) {
         val genreSongs = songs.filter { it.genre.equals(selectedGenre, ignoreCase = true) }
@@ -695,8 +724,14 @@ private fun GenresSubScreen(
                     SongTableRow(
                         song = song,
                         index = index,
-                        onClick = { viewModel.playSong(song, genreSongs) },
-                        onLongClick = { viewModel.setEditingSong(song) }
+                        isMultiSelectMode = isMultiSelectMode,
+                        isChecked = selectedSongIds.contains(song.id),
+                        onCheckedChange = { viewModel.toggleSongSelection(song.id) },
+                        onClick = {
+                            if (isMultiSelectMode) viewModel.toggleSongSelection(song.id)
+                            else viewModel.playSong(song, genreSongs)
+                        },
+                        onLongClick = { viewModel.toggleSongSelection(song.id) }
                     )
                 }
             }
@@ -746,6 +781,8 @@ private fun PlaylistsSubScreen(
     viewModel: MainViewModel
 ) {
     val themeColors = LocalThemeColors.current
+    val isMultiSelectMode by viewModel.isMultiSelectMode.collectAsState()
+    val selectedSongIds by viewModel.selectedSongIds.collectAsState()
 
     if (selectedPlaylist != null) {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -774,8 +811,14 @@ private fun PlaylistsSubScreen(
                     SongTableRow(
                         song = song,
                         index = index,
-                        onClick = { viewModel.playSong(song, allSongs) },
-                        onLongClick = { viewModel.setEditingSong(song) }
+                        isMultiSelectMode = isMultiSelectMode,
+                        isChecked = selectedSongIds.contains(song.id),
+                        onCheckedChange = { viewModel.toggleSongSelection(song.id) },
+                        onClick = {
+                            if (isMultiSelectMode) viewModel.toggleSongSelection(song.id)
+                            else viewModel.playSong(song, allSongs)
+                        },
+                        onLongClick = { viewModel.toggleSongSelection(song.id) }
                     )
                 }
             }
@@ -939,6 +982,9 @@ private fun MusicVideosSubScreen(
     videos: List<SongEntity>,
     viewModel: MainViewModel
 ) {
+    val isMultiSelectMode by viewModel.isMultiSelectMode.collectAsState()
+    val selectedSongIds by viewModel.selectedSongIds.collectAsState()
+
     if (videos.isEmpty()) {
         EmptyMediaNotice(
             "No Music Videos",
@@ -954,8 +1000,14 @@ private fun MusicVideosSubScreen(
                         song = video,
                         index = index,
                         showArtwork = true,
-                        onClick = { viewModel.playSong(video, videos) },
-                        onLongClick = { viewModel.setEditingSong(video) }
+                        isMultiSelectMode = isMultiSelectMode,
+                        isChecked = selectedSongIds.contains(video.id),
+                        onCheckedChange = { viewModel.toggleSongSelection(video.id) },
+                        onClick = {
+                            if (isMultiSelectMode) viewModel.toggleSongSelection(video.id)
+                            else viewModel.playSong(video, videos)
+                        },
+                        onLongClick = { viewModel.toggleSongSelection(video.id) }
                     )
                 }
             }
@@ -964,11 +1016,11 @@ private fun MusicVideosSubScreen(
 }
 
 @Composable
-fun EmptyMediaNotice(title: String, subtitle: String) {
+fun EmptyMediaNotice(title: String, subtitle: String, modifier: Modifier = Modifier) {
     val themeColors = LocalThemeColors.current
 
     Box(
-        modifier = Modifier.fillMaxSize(),
+        modifier = modifier.fillMaxSize(),
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {

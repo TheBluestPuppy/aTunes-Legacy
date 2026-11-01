@@ -29,7 +29,10 @@ interface MusicDao {
     @Query("SELECT * FROM songs WHERE id = :id")
     suspend fun getSongById(id: Long): SongEntity?
 
-    @Query("SELECT * FROM songs WHERE albumTitle = :albumTitle")
+    @Query("SELECT * FROM songs WHERE filePath = :filePath OR uri = :filePath LIMIT 1")
+    suspend fun getSongByFilePath(filePath: String): SongEntity?
+
+    @Query("SELECT * FROM songs WHERE albumTitle = :albumTitle ORDER BY trackNumber ASC, title ASC")
     fun getSongsByAlbum(albumTitle: String): Flow<List<SongEntity>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)

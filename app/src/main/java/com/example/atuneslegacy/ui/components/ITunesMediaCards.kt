@@ -29,6 +29,7 @@ import androidx.compose.material.icons.filled.Podcasts
 import androidx.compose.material.icons.filled.Tv
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -118,6 +119,9 @@ fun SongTableRow(
     index: Int,
     isSelected: Boolean = false,
     showArtwork: Boolean = false,
+    isMultiSelectMode: Boolean = false,
+    isChecked: Boolean = false,
+    onCheckedChange: (Boolean) -> Unit = {},
     onClick: () -> Unit,
     onLongClick: () -> Unit = {},
     modifier: Modifier = Modifier
@@ -129,11 +133,23 @@ fun SongTableRow(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(if (isSelected) themeColors.primaryAccent.copy(alpha = 0.15f) else themeColors.surface)
-                    .combinedClickable(onClick = onClick, onLongClick = onLongClick)
+                    .background(if (isChecked || isSelected) themeColors.primaryAccent.copy(alpha = 0.15f) else themeColors.surface)
+                    .combinedClickable(
+                        onClick = {
+                            if (isMultiSelectMode) onCheckedChange(!isChecked) else onClick()
+                        },
+                        onLongClick = onLongClick
+                    )
                     .padding(horizontal = 16.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                if (isMultiSelectMode) {
+                    Checkbox(
+                        checked = isChecked,
+                        onCheckedChange = onCheckedChange,
+                        modifier = Modifier.padding(end = 8.dp)
+                    )
+                }
                 Box(
                     modifier = Modifier
                         .size(46.dp)
@@ -191,6 +207,7 @@ fun SongTableRow(
     }
 
     val backgroundColor = when {
+        isChecked -> Color(0xFF388BFD).copy(alpha = 0.3f)
         isSelected -> Color(0xFF2B73E7)
         index % 2 == 1 -> Color(0xFFF2F5F9)
         else -> Color.White
@@ -205,16 +222,29 @@ fun SongTableRow(
             .fillMaxWidth()
             .height(34.dp)
             .background(backgroundColor)
-            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
+            .combinedClickable(
+                onClick = {
+                    if (isMultiSelectMode) onCheckedChange(!isChecked) else onClick()
+                },
+                onLongClick = onLongClick
+            )
             .padding(horizontal = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(
-            text = song.trackNumber.toString(),
-            modifier = Modifier.width(30.dp),
-            fontSize = 12.sp,
-            color = textColorMuted
-        )
+        if (isMultiSelectMode) {
+            Checkbox(
+                checked = isChecked,
+                onCheckedChange = onCheckedChange,
+                modifier = Modifier.size(24.dp).padding(end = 4.dp)
+            )
+        } else {
+            Text(
+                text = song.trackNumber.toString(),
+                modifier = Modifier.width(30.dp),
+                fontSize = 12.sp,
+                color = textColorMuted
+            )
+        }
         Row(
             modifier = Modifier.weight(2.5f),
             verticalAlignment = Alignment.CenterVertically
@@ -430,6 +460,25 @@ fun TvShowCard(
                         }
                     }
                 }
+                if (show.description.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = show.description,
+                        fontSize = 11.sp,
+                        color = Color(0xFF636A78),
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+            if (show.starRating > 0) {
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "★".repeat(show.starRating),
+                    fontSize = 14.sp,
+                    color = Color(0xFFEAB308),
+                    fontWeight = FontWeight.Bold
+                )
             }
         }
     }
@@ -439,6 +488,9 @@ fun TvShowCard(
 @Composable
 fun TvEpisodeRow(
     episode: TvEpisodeEntity,
+    isMultiSelectMode: Boolean = false,
+    isChecked: Boolean = false,
+    onCheckedChange: (Boolean) -> Unit = {},
     onClick: () -> Unit,
     onLongClick: () -> Unit = {},
     modifier: Modifier = Modifier
@@ -446,10 +498,23 @@ fun TvEpisodeRow(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
+            .background(if (isChecked) Color(0xFF388BFD).copy(alpha = 0.2f) else Color.Transparent)
+            .combinedClickable(
+                onClick = {
+                    if (isMultiSelectMode) onCheckedChange(!isChecked) else onClick()
+                },
+                onLongClick = onLongClick
+            )
             .padding(vertical = 8.dp, horizontal = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        if (isMultiSelectMode) {
+            Checkbox(
+                checked = isChecked,
+                onCheckedChange = onCheckedChange,
+                modifier = Modifier.size(24.dp).padding(end = 8.dp)
+            )
+        }
         Box(
             modifier = Modifier
                 .width(80.dp)
@@ -496,72 +561,26 @@ fun TvEpisodeRow(
 @Composable
 fun MovieCard(
     movie: MovieEntity,
-    isGrid: Boolean = true,
     onClick: () -> Unit,
     onLongClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    if (isGrid) {
-        Column(
-            modifier = modifier
-                .width(120.dp)
-                .combinedClickable(onClick = onClick, onLongClick = onLongClick)
-                .padding(6.dp)
-        ) {
-            Box(
-                modifier = Modifier
-                    .width(120.dp)
-                    .height(170.dp)
-                    .clip(RoundedCornerShape(4.dp))
-                    .background(Color(0xFF181B20))
-                    .border(1.dp, Color(0xFFC8CCD6), RoundedCornerShape(4.dp)),
-                contentAlignment = Alignment.Center
-            ) {
-                if (movie.thumbnailUri.isNotBlank()) {
-                    AsyncImage(
-                        model = movie.thumbnailUri,
-                        contentDescription = movie.title,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxWidth().aspectRatio(0.7f)
-                    )
-                } else {
-                    Icon(
-                        imageVector = Icons.Default.Movie,
-                        contentDescription = null,
-                        tint = Color.White.copy(alpha = 0.7f),
-                        modifier = Modifier.size(40.dp)
-                    )
-                }
-            }
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = movie.title,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color(0xFF1C1D21),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Text(
-                text = "${movie.releaseYear} • ${movie.parentalRating}",
-                fontSize = 10.sp,
-                color = Color(0xFF636A78),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
-    } else {
+    Card(
+        shape = RoundedCornerShape(6.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        modifier = modifier
+            .fillMaxWidth()
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
+    ) {
         Row(
-            modifier = modifier
-                .fillMaxWidth()
-                .combinedClickable(onClick = onClick, onLongClick = onLongClick)
-                .padding(8.dp),
+            modifier = Modifier.padding(10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
                 modifier = Modifier
-                    .width(50.dp)
-                    .height(70.dp)
+                    .width(80.dp)
+                    .height(115.dp)
                     .clip(RoundedCornerShape(4.dp))
                     .background(Color(0xFF181B20)),
                 contentAlignment = Alignment.Center
@@ -571,25 +590,58 @@ fun MovieCard(
                         model = movie.thumbnailUri,
                         contentDescription = movie.title,
                         contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxSize()
                     )
                 } else {
                     Icon(
                         imageVector = Icons.Default.Movie,
                         contentDescription = null,
                         tint = Color.White,
-                        modifier = Modifier.size(24.dp)
+                        modifier = Modifier.size(36.dp)
                     )
                 }
             }
             Spacer(modifier = Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(text = movie.title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1C1D21))
-                Text(text = "Cast: ${movie.artists}", fontSize = 12.sp, color = Color(0xFF525866))
-                Text(text = "Year: ${movie.releaseYear} | Rating: ${movie.parentalRating}", fontSize = 11.sp, color = Color(0xFF788090))
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(text = "Release: ${movie.releaseYear}", fontSize = 12.sp, color = Color(0xFF636A78))
+                    if (movie.parentalRating.isNotBlank()) {
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Box(
+                            modifier = Modifier
+                                .border(0.8.dp, Color(0xFF8E95A2), RoundedCornerShape(3.dp))
+                                .padding(horizontal = 4.dp, vertical = 1.dp)
+                        ) {
+                            Text(
+                                text = movie.parentalRating,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF4A505C)
+                            )
+                        }
+                    }
+                }
+                if (movie.artists.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(text = "Cast: ${movie.artists}", fontSize = 11.sp, color = Color(0xFF525866), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                if (movie.description.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(text = movie.description, fontSize = 11.sp, color = Color(0xFF636A78), maxLines = 2, overflow = TextOverflow.Ellipsis)
+                }
+            }
+            if (movie.starRating > 0) {
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "★".repeat(movie.starRating),
+                    fontSize = 14.sp,
+                    color = Color(0xFFEAB308),
+                    fontWeight = FontWeight.Bold
+                )
             }
         }
-        HorizontalDivider(color = Color(0xFFE8EBF0), thickness = 0.5.dp)
     }
 }
 
@@ -601,52 +653,86 @@ fun PodcastShowCard(
     onLongClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    Column(
+    Card(
+        shape = RoundedCornerShape(6.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         modifier = modifier
-            .width(130.dp)
+            .fillMaxWidth()
             .combinedClickable(onClick = onClick, onLongClick = onLongClick)
-            .padding(6.dp)
     ) {
-        Box(
-            modifier = Modifier
-                .size(128.dp)
-                .clip(RoundedCornerShape(6.dp))
-                .background(Color(0xFFE2E6EE))
-                .border(1.dp, Color(0xFFC4C9D4), RoundedCornerShape(6.dp)),
-            contentAlignment = Alignment.Center
+        Row(
+            modifier = Modifier.padding(10.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            if (show.logoThumbnailUri.isNotBlank()) {
-                AsyncImage(
-                    model = show.logoThumbnailUri,
-                    contentDescription = show.title,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxWidth().aspectRatio(1f)
+            Box(
+                modifier = Modifier
+                    .width(80.dp)
+                    .height(115.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(Color(0xFFE2E6EE))
+                    .border(1.dp, Color(0xFFC4C9D4), RoundedCornerShape(4.dp)),
+                contentAlignment = Alignment.Center
+            ) {
+                if (show.logoThumbnailUri.isNotBlank()) {
+                    AsyncImage(
+                        model = show.logoThumbnailUri,
+                        contentDescription = show.title,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Default.Podcasts,
+                        contentDescription = null,
+                        tint = ITunesAccentBlue,
+                        modifier = Modifier.size(36.dp)
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = show.title,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF1C1D21)
                 )
-            } else {
-                Icon(
-                    imageVector = Icons.Default.Podcasts,
-                    contentDescription = null,
-                    tint = ITunesAccentBlue,
-                    modifier = Modifier.size(44.dp)
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = show.creatorHost.ifBlank { "Unknown Host" },
+                    fontSize = 12.sp,
+                    color = Color(0xFF636A78)
+                )
+                if (show.category.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = "Category: ${show.category}",
+                        fontSize = 11.sp,
+                        color = Color(0xFF687080)
+                    )
+                }
+                if (show.description.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = show.description,
+                        fontSize = 11.sp,
+                        color = Color(0xFF636A78),
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+            if (show.starRating > 0) {
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "★".repeat(show.starRating),
+                    fontSize = 14.sp,
+                    color = Color(0xFFEAB308),
+                    fontWeight = FontWeight.Bold
                 )
             }
         }
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(
-            text = show.title,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color(0xFF1C1D21),
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
-        Text(
-            text = show.creatorHost,
-            fontSize = 11.sp,
-            color = Color(0xFF636A78),
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
     }
 }
 

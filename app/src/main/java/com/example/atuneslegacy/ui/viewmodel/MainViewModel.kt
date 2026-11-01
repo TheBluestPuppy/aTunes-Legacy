@@ -24,6 +24,7 @@ import com.example.atuneslegacy.data.local.entity.SongEntity
 import com.example.atuneslegacy.data.local.entity.TvEpisodeEntity
 import com.example.atuneslegacy.data.local.entity.TvShowEntity
 import com.example.atuneslegacy.data.repository.MediaRepository
+import com.example.atuneslegacy.util.ImagePersister
 import com.example.atuneslegacy.player.MediaItemMetadata
 import com.example.atuneslegacy.player.MediaPlayerManager
 import com.example.atuneslegacy.player.MediaType
@@ -33,6 +34,7 @@ import com.example.atuneslegacy.ui.navigation.MusicSubTab
 import com.example.atuneslegacy.ui.navigation.PodcastSubTab
 import com.example.atuneslegacy.ui.theme.AppTheme
 import io.github.jan.supabase.auth.user.UserInfo
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -84,8 +86,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     fun setProfilePictureUri(uri: String?) {
-        viewModelScope.launch {
-            userPrefs.saveProfilePicture(uri)
+        viewModelScope.launch(Dispatchers.IO) {
+            val context = getApplication<Application>().applicationContext
+            val permanentUri = uri?.let { ImagePersister.persistImageLocally(context, it, "profile") }
+            userPrefs.saveProfilePicture(permanentUri)
         }
     }
 
@@ -324,6 +328,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     init {
         checkUserAuth()
+        scanATunesDirectory()
+    }
+
+    fun scanATunesDirectory() {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val context = getApplication<Application>().applicationContext
+                MediaImportHelper.scanAndImportATunesDirectory(context, mediaRepository)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
     }
 
     // --- USER INTERACTION HANDLERS ---
@@ -443,8 +459,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun updateTvShow(oldTitle: String, show: TvShowEntity) {
-        viewModelScope.launch {
-            mediaRepository.updateTvShowAndCascade(oldTitle, show)
+        viewModelScope.launch(Dispatchers.IO) {
+            val context = getApplication<Application>().applicationContext
+            val permanentLogo = ImagePersister.persistImageLocally(context, show.logoThumbnailUri, "tvshow")
+            val updated = show.copy(logoThumbnailUri = permanentLogo)
+            mediaRepository.updateTvShowAndCascade(oldTitle, updated)
             _editingTvShow.value = null
         }
     }
@@ -1005,6 +1024,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     ImportCategory.TV_SHOWS -> {
                         val episode = MediaImportHelper.createTvEpisodeEntity(context, uri)
                         mediaRepository.insertTvEpisode(episode)
+                        val showTitle = episode.showTitle.ifBlank { "Unspecified Show" }
+                        val existingShow = mediaRepository.getTvShowByTitle(showTitle)
+                        if (existingShow == null) {
+                            mediaRepository.insertTvShow(
+                                TvShowEntity(
+                                    title = showTitle,
+                                    releaseYear = 2024,
+                                    parentalRating = "TV-14",
+                                    logoThumbnailUri = episode.thumbnailUri
+                                )
+                            )
+                        }
                     }
                     ImportCategory.MOVIES -> {
                         val movie = MediaImportHelper.createMovieEntity(context, uri)
@@ -1152,6 +1183,132 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             mediaRepository.deleteGameShortcut(packageName)
             removeGameShortcut(packageName)
+        }
+    }
+
+    private val _selectedSongIds = MutableStateFlow<Set<Long>>(emptySet())
+    val selectedSongIds: StateFlow<Set<Long>> = _selectedSongIds.asStateFlow()
+
+    private val _isMultiSelectMode = MutableStateFlow(false)
+    val isMultiSelectMode: StateFlow<Boolean> = _isMultiSelectMode.asStateFlow()
+
+    private val _showBulkEditDialog = MutableStateFlow(false)
+    val showBulkEditDialog: StateFlow<Boolean> = _showBulkEditDialog.asStateFlow()
+
+    fun toggleSongSelection(id: Long) {
+        val current = _selectedSongIds.value.toMutableSet()
+        if (current.contains(id)) {
+            current.remove(id)
+        } else {
+            current.add(id)
+        }
+        _selectedSongIds.value = current
+        _isMultiSelectMode.value = current.isNotEmpty()
+    }
+
+    fun selectAllSongs(ids: List<Long>) {
+        _selectedSongIds.value = ids.toSet()
+        _isMultiSelectMode.value = ids.isNotEmpty()
+    }
+
+    fun clearSongSelection() {
+        _selectedSongIds.value = emptySet()
+        _isMultiSelectMode.value = false
+    }
+
+    fun setShowBulkEditDialog(show: Boolean) {
+        _showBulkEditDialog.value = show
+    }
+
+    fun deleteSelectedSongs() {
+        val ids = _selectedSongIds.value.toList()
+        if (ids.isEmpty()) return
+        viewModelScope.launch(Dispatchers.IO) {
+            for (id in ids) {
+                mediaRepository.getSongById(id)?.let { song ->
+                    mediaRepository.deleteSong(song)
+                }
+            }
+            clearSongSelection()
+        }
+    }
+
+    fun bulkUpdateSongsMetadata(artist: String, album: String, genre: String, yearStr: String) {
+        val ids = _selectedSongIds.value.toList()
+        if (ids.isEmpty()) return
+        viewModelScope.launch(Dispatchers.IO) {
+            val year = yearStr.toIntOrNull()
+            for (id in ids) {
+                mediaRepository.getSongById(id)?.let { song ->
+                    val updated = song.copy(
+                        artist = if (artist.isNotBlank()) artist else song.artist,
+                        albumArtist = if (artist.isNotBlank()) artist else song.albumArtist,
+                        albumTitle = if (album.isNotBlank()) album else song.albumTitle,
+                        genre = if (genre.isNotBlank()) genre else song.genre,
+                        year = year ?: song.year
+                    )
+                    mediaRepository.updateSong(updated)
+                }
+            }
+            clearSongSelection()
+            _showBulkEditDialog.value = false
+        }
+    }
+
+    private val _selectedTvEpisodeIds = MutableStateFlow<Set<Long>>(emptySet())
+    val selectedTvEpisodeIds: StateFlow<Set<Long>> = _selectedTvEpisodeIds.asStateFlow()
+
+    private val _isTvMultiSelectMode = MutableStateFlow(false)
+    val isTvMultiSelectMode: StateFlow<Boolean> = _isTvMultiSelectMode.asStateFlow()
+
+    private val _showTvBulkEditDialog = MutableStateFlow(false)
+    val showTvBulkEditDialog: StateFlow<Boolean> = _showTvBulkEditDialog.asStateFlow()
+
+    fun toggleTvEpisodeSelection(id: Long) {
+        val current = _selectedTvEpisodeIds.value.toMutableSet()
+        if (current.contains(id)) current.remove(id) else current.add(id)
+        _selectedTvEpisodeIds.value = current
+        _isTvMultiSelectMode.value = current.isNotEmpty()
+    }
+
+    fun clearTvEpisodeSelection() {
+        _selectedTvEpisodeIds.value = emptySet()
+        _isTvMultiSelectMode.value = false
+    }
+
+    fun setShowTvBulkEditDialog(show: Boolean) {
+        _showTvBulkEditDialog.value = show
+    }
+
+    fun deleteSelectedTvEpisodes() {
+        val ids = _selectedTvEpisodeIds.value.toList()
+        if (ids.isEmpty()) return
+        viewModelScope.launch(Dispatchers.IO) {
+            for (id in ids) {
+                mediaRepository.getEpisodeById(id)?.let { ep ->
+                    mediaRepository.deleteTvEpisode(ep)
+                }
+            }
+            clearTvEpisodeSelection()
+        }
+    }
+
+    fun bulkUpdateTvEpisodesMetadata(seasonStr: String, titlePrefix: String) {
+        val ids = _selectedTvEpisodeIds.value.toList()
+        if (ids.isEmpty()) return
+        viewModelScope.launch(Dispatchers.IO) {
+            val season = seasonStr.toIntOrNull()
+            for (id in ids) {
+                mediaRepository.getEpisodeById(id)?.let { ep ->
+                    val updated = ep.copy(
+                        seasonNumber = season ?: ep.seasonNumber,
+                        title = if (titlePrefix.isNotBlank()) "$titlePrefix ${ep.episodeNumber}" else ep.title
+                    )
+                    mediaRepository.updateTvEpisode(updated)
+                }
+            }
+            clearTvEpisodeSelection()
+            _showTvBulkEditDialog.value = false
         }
     }
 }

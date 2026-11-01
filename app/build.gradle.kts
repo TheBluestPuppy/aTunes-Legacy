@@ -6,6 +6,13 @@ plugins {
 }
 
 android {
+    // ... other configurations ...
+
+    packaging {
+        resources.excludes.add("META-INF/INDEX.LIST")
+        resources.excludes.add("META-INF/io.netty.versions.properties")
+    }
+
     namespace = "com.example.atuneslegacy"
     compileSdk {
         version = release(37)
@@ -39,6 +46,10 @@ android {
 }
 
 dependencies {
+    implementation("io.ktor:ktor-server-core:2.3.7")
+    implementation("io.ktor:ktor-server-netty:2.3.7")
+    implementation("io.ktor:ktor-server-content-negotiation:2.3.7")
+    implementation("io.ktor:ktor-serialization-kotlinx-json:2.3.7")
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.accompanist.permissions)
     implementation(libs.androidx.activity.compose)
