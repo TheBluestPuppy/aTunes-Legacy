@@ -126,7 +126,8 @@ fun MainScreen(
 
     val configuration = LocalConfiguration.current
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
-    if (isLandscape) {
+    val showVideoPlayer by viewModel.mediaPlayerManager.showVideoPlayer.collectAsState()
+    if (isLandscape && !showVideoPlayer) {
         CoverFlowScreen(viewModel = viewModel, modifier = modifier)
         return
     }
@@ -170,7 +171,6 @@ fun MainScreen(
 
     val showCreatePlaylistDialog by viewModel.showCreatePlaylistDialog.collectAsState()
     val showAddMediaDialog by viewModel.showAddMediaDialog.collectAsState()
-    val showVideoPlayer by viewModel.mediaPlayerManager.showVideoPlayer.collectAsState()
     val showMusicPlayer by viewModel.mediaPlayerManager.showMusicPlayer.collectAsState()
 
     // Screen Off Listener for Video Playback Control
