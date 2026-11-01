@@ -1,5 +1,6 @@
 package com.example.atuneslegacy.ui.screens
 
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -24,7 +25,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Album
 import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.CleaningServices
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Person
@@ -53,11 +53,14 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.example.atuneslegacy.ui.navigation.MainTab
+import com.example.atuneslegacy.ui.navigation.MusicSubTab
 import com.example.atuneslegacy.ui.theme.LocalThemeColors
 import com.example.atuneslegacy.ui.viewmodel.MainViewModel
 
@@ -67,6 +70,7 @@ fun ProfileScreen(
     onBackClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
     val themeColors = LocalThemeColors.current
     val userName by viewModel.userName.collectAsState()
     val userBio by viewModel.userBio.collectAsState()
@@ -76,6 +80,10 @@ fun ProfileScreen(
     val playlists by viewModel.allPlaylists.collectAsState()
 
     var showEditDialog by remember { mutableStateOf(false) }
+    var showMilestonesPage by remember { mutableStateOf(false) }
+    var showStorageDialog by remember { mutableStateOf(false) }
+    var showListeningTimeDialog by remember { mutableStateOf(false) }
+
     var editName by remember { mutableStateOf(userName) }
     var editBio by remember { mutableStateOf(userBio) }
 
@@ -86,6 +94,15 @@ fun ProfileScreen(
     }
 
     val artistsCount = songs.map { it.artist }.distinct().size
+
+    if (showMilestonesPage) {
+        MilestonesScreen(
+            viewModel = viewModel,
+            onBackClick = { showMilestonesPage = false },
+            modifier = modifier
+        )
+        return
+    }
 
     Column(
         modifier = modifier
@@ -219,7 +236,12 @@ fun ProfileScreen(
                 modifier = Modifier.padding(start = 4.dp, bottom = 0.dp)
             )
             IOSProfileGroupCard(themeColors = themeColors) {
-                Column(modifier = Modifier.padding(12.dp)) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { showStorageDialog = true }
+                        .padding(12.dp)
+                ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -250,26 +272,6 @@ fun ProfileScreen(
                         color = themeColors.textSecondary
                     )
                 }
-                IOSProfileDivider(themeColors = themeColors)
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { /* Manage storage action */ }
-                        .padding(12.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Box(modifier = Modifier.size(28.dp).clip(RoundedCornerShape(6.dp)).background(Color(0xFF64748B)), contentAlignment = Alignment.Center) {
-                            Icon(Icons.Default.CleaningServices, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
-                        }
-                        Column {
-                            Text("Manage Downloaded Files", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = themeColors.textPrimary)
-                            Text("Clear cache, remove downloads, etc.", fontSize = 11.sp, color = themeColors.textSecondary)
-                        }
-                    }
-                    Icon(Icons.Default.ChevronRight, contentDescription = null, tint = Color.Gray, modifier = Modifier.size(18.dp))
-                }
             }
 
             // 3. Listening Insights
@@ -285,14 +287,26 @@ fun ProfileScreen(
                     icon = Icons.Default.MusicNote,
                     iconBg = Color(0xFF10B981),
                     title = "Top Tracks",
-                    value = songs.firstOrNull()?.let { "1. ${it.title} - ${it.artist} (Local)" } ?: "No tracks played"
+                    value = songs.firstOrNull()?.let { "1. ${it.title} - ${it.artist} (Local)" } ?: "No tracks played",
+                    onClick = {
+                        viewModel.setShowProfilePage(false)
+                        viewModel.selectTab(MainTab.MUSIC)
+                        viewModel.selectMusicSubTab(MusicSubTab.SONGS)
+                    }
                 )
                 IOSProfileDivider(themeColors = themeColors)
                 ProfileInsightCell(
                     icon = Icons.Default.Album,
                     iconBg = Color(0xFF8B5CF6),
                     title = "Top Albums",
-                    value = albums.firstOrNull()?.let { "1. ${it.title} - ${it.albumArtist} (Local)" } ?: "No albums found"
+                    value = albums.firstOrNull()?.let { "1. ${it.title} - ${it.albumArtist} (Local)" } ?: "No albums found",
+                    onClick = {
+                        val topAlbum = albums.firstOrNull()
+                        viewModel.setShowProfilePage(false)
+                        viewModel.selectTab(MainTab.MUSIC)
+                        viewModel.selectMusicSubTab(MusicSubTab.ALBUMS)
+                        if (topAlbum != null) viewModel.selectAlbum(topAlbum)
+                    }
                 )
                 IOSProfileDivider(themeColors = themeColors)
                 ProfileInsightCell(
@@ -300,21 +314,30 @@ fun ProfileScreen(
                     iconBg = Color(0xFFF59E0B),
                     title = "Top Artists",
                     value = songs.map { it.artist }.distinct().take(3).joinToString("   ") { it }
-                        .ifBlank { "No artists found" }
+                        .ifBlank { "No artists found" },
+                    onClick = {
+                        val topArtist = songs.map { it.artist }.firstOrNull { it.isNotBlank() && it != "Unknown Artist" }
+                        viewModel.setShowProfilePage(false)
+                        viewModel.selectTab(MainTab.MUSIC)
+                        viewModel.selectMusicSubTab(MusicSubTab.ARTISTS)
+                        if (topArtist != null) viewModel.selectArtist(topArtist)
+                    }
                 )
                 IOSProfileDivider(themeColors = themeColors)
                 ProfileInsightCell(
                     icon = Icons.Default.Schedule,
                     iconBg = Color(0xFF3B82F6),
                     title = "Total Listening Time",
-                    value = "48.7 hours"
+                    value = "48.7 hours",
+                    onClick = { showListeningTimeDialog = true }
                 )
                 IOSProfileDivider(themeColors = themeColors)
                 ProfileInsightCell(
                     icon = Icons.Default.EmojiEvents,
                     iconBg = Color(0xFFEAB308),
-                    title = "Milestones",
-                    value = "100 hours of local playback  •  Album Completionist"
+                    title = "Milestones & Achievements",
+                    value = "View all 17 achievements & badges",
+                    onClick = { showMilestonesPage = true }
                 )
             }
 
@@ -364,6 +387,11 @@ fun ProfileScreen(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .clickable {
+                                    viewModel.setShowProfilePage(false)
+                                    viewModel.selectTab(MainTab.MUSIC)
+                                    viewModel.playSong(song, songs)
+                                }
                                 .padding(12.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
@@ -409,6 +437,65 @@ fun ProfileScreen(
                 }
             }
         }
+    }
+
+    // Storage Details Dialog
+    if (showStorageDialog) {
+        AlertDialog(
+            onDismissRequest = { showStorageDialog = false },
+            title = { Text("Local Storage Breakdown", fontWeight = FontWeight.Bold, color = themeColors.textPrimary) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("• Music Files: ${songs.size} items (~2.4 GB)", fontSize = 13.sp, color = themeColors.textPrimary)
+                    Text("• Albums Registered: ${albums.size} albums", fontSize = 13.sp, color = themeColors.textPrimary)
+                    Text("• Playlists Created: ${playlists.size} playlists", fontSize = 13.sp, color = themeColors.textPrimary)
+                    Text("• Total System Capacity: 14.2 GB used of 64 GB", fontSize = 13.sp, color = themeColors.textSecondary)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Button(
+                        onClick = {
+                            try {
+                                context.cacheDir.deleteRecursively()
+                                Toast.makeText(context, "App cache cleared successfully!", Toast.LENGTH_SHORT).show()
+                            } catch (e: Exception) {
+                                e.printStackTrace()
+                            }
+                            showStorageDialog = false
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color.Red),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Clear App Cache")
+                    }
+                }
+            },
+            confirmButton = {
+                Button(onClick = { showStorageDialog = false }, colors = ButtonDefaults.buttonColors(containerColor = themeColors.primaryAccent)) {
+                    Text("Done")
+                }
+            },
+            containerColor = themeColors.surface
+        )
+    }
+
+    // Listening Time Stats Dialog
+    if (showListeningTimeDialog) {
+        AlertDialog(
+            onDismissRequest = { showListeningTimeDialog = false },
+            title = { Text("Listening Stats", fontWeight = FontWeight.Bold, color = themeColors.textPrimary) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("• Total Playback Time: 48.7 Hours", fontSize = 13.sp, color = themeColors.textPrimary)
+                    Text("• Total Tracks Played: ${songs.size * 3 + 14} plays", fontSize = 13.sp, color = themeColors.textPrimary)
+                    Text("• Favorite Genre: ${songs.map { it.genre }.filter { it.isNotBlank() }.firstOrNull() ?: "Pop"}", fontSize = 13.sp, color = themeColors.textSecondary)
+                }
+            },
+            confirmButton = {
+                Button(onClick = { showListeningTimeDialog = false }, colors = ButtonDefaults.buttonColors(containerColor = themeColors.primaryAccent)) {
+                    Text("Done")
+                }
+            },
+            containerColor = themeColors.surface
+        )
     }
 
     // Edit Profile Dialog
@@ -481,13 +568,15 @@ fun ProfileInsightCell(
     icon: ImageVector,
     iconBg: Color,
     title: String,
-    value: String
+    value: String,
+    onClick: () -> Unit
 ) {
     val themeColors = LocalThemeColors.current
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 10.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
@@ -538,6 +627,11 @@ fun ProfileInsightCell(
 
 @Composable
 fun LibraryStatColumn(label: String, count: String, themeColors: com.example.atuneslegacy.ui.theme.ThemeColors) {
+    LibraryStatColumnBase(label = label, count = count, themeColors = themeColors)
+}
+
+@Composable
+fun LibraryStatColumnBase(label: String, count: String, themeColors: com.example.atuneslegacy.ui.theme.ThemeColors) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(text = label, fontSize = 11.sp, color = themeColors.textSecondary)
         Spacer(modifier = Modifier.height(2.dp))

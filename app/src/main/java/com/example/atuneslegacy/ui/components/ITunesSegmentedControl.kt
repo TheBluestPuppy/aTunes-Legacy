@@ -3,12 +3,14 @@ package com.example.atuneslegacy.ui.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -26,6 +28,7 @@ import androidx.compose.ui.unit.sp
 import com.example.atuneslegacy.ui.theme.ATunesLegacyTheme
 import com.example.atuneslegacy.ui.theme.ITunesActiveSegmentEnd
 import com.example.atuneslegacy.ui.theme.ITunesActiveSegmentStart
+import com.example.atuneslegacy.ui.theme.LocalThemeColors
 
 @Composable
 fun <T> ITunesSegmentedControl(
@@ -35,6 +38,44 @@ fun <T> ITunesSegmentedControl(
     getItemLabel: (T) -> String,
     modifier: Modifier = Modifier
 ) {
+    val themeColors = LocalThemeColors.current
+
+    if (themeColors.isAppleMusic) {
+        Row(
+            modifier = modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            items.forEach { item ->
+                val isSelected = item == selectedItem
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(if (isSelected) themeColors.primaryAccent else themeColors.surface)
+                        .border(
+                            width = 0.5.dp,
+                            color = if (isSelected) themeColors.primaryAccent else themeColors.surfaceBorder,
+                            shape = RoundedCornerShape(16.dp)
+                        )
+                        .clickable { onItemSelected(item) }
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = getItemLabel(item),
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (isSelected) Color.White else themeColors.textPrimary
+                    )
+                }
+            }
+        }
+        return
+    }
+
     Row(
         modifier = modifier
             .fillMaxWidth()

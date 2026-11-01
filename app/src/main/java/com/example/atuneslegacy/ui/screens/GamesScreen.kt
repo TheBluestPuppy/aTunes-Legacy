@@ -18,12 +18,8 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -34,13 +30,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.example.atuneslegacy.ui.components.AppShortcutMetadataDialog
 import com.example.atuneslegacy.ui.theme.LocalThemeColors
 import com.example.atuneslegacy.ui.viewmodel.MainViewModel
 
@@ -54,7 +50,8 @@ fun GamesScreen(
     val context = LocalContext.current
     val importedPackages by viewModel.importedGamePackages.collectAsState()
     val removedPackages by viewModel.removedGamePackages.collectAsState()
-    var appToRemove by remember { mutableStateOf<ApplicationInfo?>(null) }
+    val allShortcuts by viewModel.allGameShortcuts.collectAsState()
+    var editingApp by remember { mutableStateOf<ApplicationInfo?>(null) }
 
     val installedApps = remember(importedPackages, removedPackages) {
         val pm: PackageManager = context.packageManager
@@ -82,8 +79,9 @@ fun GamesScreen(
             ) {
                 items(installedApps) { app ->
                     val pm = context.packageManager
-                    val appName = app.loadLabel(pm).toString()
-                    val appIcon = app.loadIcon(pm)
+                    val shortcutEntity = allShortcuts.firstOrNull { it.packageName == app.packageName }
+                    val appName = shortcutEntity?.customName?.takeIf { it.isNotBlank() } ?: app.loadLabel(pm).toString()
+                    val appIcon = shortcutEntity?.customImageUri?.takeIf { it.isNotBlank() } ?: app.loadIcon(pm)
 
                     Card(
                         shape = RoundedCornerShape(8.dp),
@@ -101,7 +99,7 @@ fun GamesScreen(
                                     }
                                 },
                                 onLongClick = {
-                                    appToRemove = app
+                                    editingApp = app
                                 }
                             )
                     ) {
@@ -135,30 +133,24 @@ fun GamesScreen(
         }
     }
 
-    appToRemove?.let { app ->
+    editingApp?.let { app ->
         val pm = context.packageManager
-        val appName = app.loadLabel(pm).toString()
-        AlertDialog(
-            onDismissRequest = { appToRemove = null },
-            title = { Text("Remove Shortcut?", fontWeight = FontWeight.Bold, color = themeColors.textPrimary) },
-            text = { Text("Do you want to remove '$appName' shortcut from your aTunes Games tab?", color = themeColors.textSecondary) },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        viewModel.removeGameShortcut(app.packageName)
-                        appToRemove = null
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
-                ) {
-                    Text("Remove")
-                }
+        val shortcutEntity = allShortcuts.firstOrNull { it.packageName == app.packageName }
+        val currentName = shortcutEntity?.customName?.takeIf { it.isNotBlank() } ?: app.loadLabel(pm).toString()
+        val currentImage = shortcutEntity?.customImageUri ?: ""
+
+        AppShortcutMetadataDialog(
+            initialName = currentName,
+            initialImageUri = currentImage,
+            onDismiss = { editingApp = null },
+            onSave = { newName, newImageUri ->
+                viewModel.updateGameShortcutMetadata(app.packageName, newName, newImageUri)
+                editingApp = null
             },
-            dismissButton = {
-                OutlinedButton(onClick = { appToRemove = null }) {
-                    Text("Cancel")
-                }
-            },
-            containerColor = themeColors.surface
+            onRemove = {
+                viewModel.removeGameShortcutCustom(app.packageName)
+                editingApp = null
+            }
         )
     }
 }

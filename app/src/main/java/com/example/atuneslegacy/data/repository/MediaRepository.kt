@@ -6,7 +6,9 @@ import com.example.atuneslegacy.data.local.dao.MusicDao
 import com.example.atuneslegacy.data.local.dao.PodcastDao
 import com.example.atuneslegacy.data.local.dao.TvDao
 import com.example.atuneslegacy.data.local.entity.AlbumEntity
+import com.example.atuneslegacy.data.local.entity.ArtistEntity
 import com.example.atuneslegacy.data.local.entity.AudiobookEntity
+import com.example.atuneslegacy.data.local.entity.GameShortcutEntity
 import com.example.atuneslegacy.data.local.entity.BookSeriesEntity
 import com.example.atuneslegacy.data.local.entity.MovieEntity
 import com.example.atuneslegacy.data.local.entity.PlaylistEntity
@@ -68,7 +70,25 @@ class MediaRepository(
     suspend fun deletePlaylistItem(item: PlaylistItemEntity) = musicDao.deletePlaylistItem(item)
     suspend fun clearPlaylist(playlistId: Long) = musicDao.clearPlaylist(playlistId)
 
-    // --- TV SHOWS & EPISODES & CASCADING UPDATE ---
+    // --- ARTISTS & CASCADING UPDATE ---
+    fun getAllArtists(): Flow<List<ArtistEntity>> = musicDao.getAllArtists()
+    suspend fun getArtistByName(name: String): ArtistEntity? = musicDao.getArtistByName(name)
+    suspend fun insertArtist(artist: ArtistEntity) = musicDao.insertArtist(artist)
+
+    suspend fun updateArtistAndCascade(oldName: String, newName: String, customArtworkUri: String) {
+        val trimmedNew = newName.trim().ifBlank { oldName }
+        val artist = ArtistEntity(name = trimmedNew, customArtworkUri = customArtworkUri, customName = trimmedNew)
+        musicDao.insertArtist(artist)
+        if (oldName.isNotBlank() && oldName != trimmedNew) {
+            musicDao.updateArtistSongsMetadata(oldName, trimmedNew)
+            musicDao.updateArtistAlbumsMetadata(oldName, trimmedNew)
+        }
+    }
+
+    // --- GAME SHORTCUTS ---
+    fun getAllGameShortcuts(): Flow<List<GameShortcutEntity>> = musicDao.getAllGameShortcuts()
+    suspend fun insertGameShortcut(shortcut: GameShortcutEntity) = musicDao.insertGameShortcut(shortcut)
+    suspend fun deleteGameShortcut(packageName: String) = musicDao.deleteGameShortcut(packageName)
     fun getAllTvShows(): Flow<List<TvShowEntity>> = tvDao.getAllTvShows()
     suspend fun getTvShowById(id: Long): TvShowEntity? = tvDao.getTvShowById(id)
     suspend fun insertTvShow(show: TvShowEntity): Long = tvDao.insertTvShow(show)

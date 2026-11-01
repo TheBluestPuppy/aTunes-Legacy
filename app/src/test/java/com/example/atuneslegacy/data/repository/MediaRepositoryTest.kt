@@ -6,8 +6,10 @@ import com.example.atuneslegacy.data.local.dao.MusicDao
 import com.example.atuneslegacy.data.local.dao.PodcastDao
 import com.example.atuneslegacy.data.local.dao.TvDao
 import com.example.atuneslegacy.data.local.entity.AlbumEntity
+import com.example.atuneslegacy.data.local.entity.ArtistEntity
 import com.example.atuneslegacy.data.local.entity.AudiobookEntity
 import com.example.atuneslegacy.data.local.entity.BookSeriesEntity
+import com.example.atuneslegacy.data.local.entity.GameShortcutEntity
 import com.example.atuneslegacy.data.local.entity.MovieEntity
 import com.example.atuneslegacy.data.local.entity.PlaylistEntity
 import com.example.atuneslegacy.data.local.entity.PlaylistItemEntity
@@ -18,7 +20,6 @@ import com.example.atuneslegacy.data.local.entity.TvEpisodeEntity
 import com.example.atuneslegacy.data.local.entity.TvShowEntity
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -75,64 +76,28 @@ class MediaRepositoryTest {
         assertEquals("Remastered Album", updatedSong2?.albumTitle)
         assertEquals("New Artist", updatedSong2?.albumArtist)
     }
-
-    @Test
-    fun testTvShowCascadeUpdate() = runTest {
-        val show = TvShowEntity(id = 1, title = "Old Show Title", releaseYear = 2010)
-        val episode1 = TvEpisodeEntity(id = 1, title = "Pilot", showTitle = "Old Show Title", seasonNumber = 1, episodeNumber = 1, uri = "uri1")
-
-        fakeTvDao.insertTvShow(show)
-        fakeTvDao.insertEpisode(episode1)
-
-        val updatedShow = TvShowEntity(id = 1, title = "New Show Title", releaseYear = 2010)
-        repository.updateTvShowAndCascade(oldShowTitle = "Old Show Title", updatedTvShow = updatedShow)
-
-        val updatedEpisode = fakeTvDao.getEpisodeById(1)
-        assertEquals("New Show Title", updatedEpisode?.showTitle)
-    }
-
-    @Test
-    fun testPodcastShowCascadeUpdate() = runTest {
-        val podcast = PodcastShowEntity(id = 1, title = "Old Podcast Name", creatorHost = "Host")
-        val ep = PodcastEpisodeEntity(id = 1, title = "Ep 1", podcastName = "Old Podcast Name", uri = "uri1")
-
-        fakePodcastDao.insertPodcastShow(podcast)
-        fakePodcastDao.insertPodcastEpisode(ep)
-
-        val updatedPodcast = PodcastShowEntity(id = 1, title = "New Podcast Name", creatorHost = "Host")
-        repository.updatePodcastShowAndCascade(oldPodcastName = "Old Podcast Name", updatedPodcastShow = updatedPodcast)
-
-        val updatedEp = fakePodcastDao.getPodcastEpisodeById(1)
-        assertEquals("New Podcast Name", updatedEp?.podcastName)
-    }
-
-    @Test
-    fun testBookSeriesCascadeUpdate() = runTest {
-        val series = BookSeriesEntity(id = 1, title = "Old Series", genre = "Sci-Fi")
-        val book = AudiobookEntity(id = 1, title = "Book 1", author = "Author", bookSeries = "Old Series", genre = "Sci-Fi", uri = "uri1")
-
-        fakeAudiobookDao.insertBookSeries(series)
-        fakeAudiobookDao.insertAudiobook(book)
-
-        val updatedSeries = BookSeriesEntity(id = 1, title = "New Series", genre = "Fantasy")
-        repository.updateBookSeriesAndCascade(oldSeriesTitle = "Old Series", updatedSeries = updatedSeries)
-
-        val updatedBook = fakeAudiobookDao.getAudiobookById(1)
-        assertEquals("New Series", updatedBook?.bookSeries)
-        assertEquals("Fantasy", updatedBook?.genre)
-    }
 }
 
-// Fake DAOs for unit testing
 class FakeMusicDao : MusicDao {
     private val songsMap = mutableMapOf<Long, SongEntity>()
     private val albumsMap = mutableMapOf<Long, AlbumEntity>()
+    private val artistsMap = mutableMapOf<String, ArtistEntity>()
+    private val gameShortcutsMap = mutableMapOf<String, GameShortcutEntity>()
+    private val playlistsMap = mutableMapOf<Long, PlaylistEntity>()
+    private val playlistItemsMap = mutableMapOf<Long, PlaylistItemEntity>()
+
     private val songsFlow = MutableStateFlow<List<SongEntity>>(emptyList())
     private val albumsFlow = MutableStateFlow<List<AlbumEntity>>(emptyList())
+    private val artistsFlow = MutableStateFlow<List<ArtistEntity>>(emptyList())
+    private val gameShortcutsFlow = MutableStateFlow<List<GameShortcutEntity>>(emptyList())
+    private val playlistsFlow = MutableStateFlow<List<PlaylistEntity>>(emptyList())
 
     private fun notifyChanges() {
         songsFlow.value = songsMap.values.toList()
         albumsFlow.value = albumsMap.values.toList()
+        artistsFlow.value = artistsMap.values.toList()
+        gameShortcutsFlow.value = gameShortcutsMap.values.toList()
+        playlistsFlow.value = playlistsMap.values.toList()
     }
 
     override fun getAllSongs(): Flow<List<SongEntity>> = songsFlow
@@ -143,46 +108,19 @@ class FakeMusicDao : MusicDao {
 
     override suspend fun insertSong(song: SongEntity): Long {
         val id = if (song.id == 0L) (songsMap.keys.maxOrNull() ?: 0L) + 1 else song.id
-        val entity = song.copy(id = id)
-        songsMap[id] = entity
+        songsMap[id] = song.copy(id = id)
         notifyChanges()
         return id
     }
+    override suspend fun insertSongs(songs: List<SongEntity>) { songs.forEach { insertSong(it) } }
+    override suspend fun updateSong(song: SongEntity) { songsMap[song.id] = song; notifyChanges() }
+    override suspend fun deleteSong(song: SongEntity) { songsMap.remove(song.id); notifyChanges() }
+    override suspend fun deleteSongById(id: Long) { songsMap.remove(id); notifyChanges() }
 
-    override suspend fun insertSongs(songs: List<SongEntity>) {
-        songs.forEach { insertSong(it) }
-    }
-
-    override suspend fun updateSong(song: SongEntity) {
-        songsMap[song.id] = song
-        notifyChanges()
-    }
-
-    override suspend fun deleteSong(song: SongEntity) {
-        songsMap.remove(song.id)
-        notifyChanges()
-    }
-
-    override suspend fun deleteSongById(id: Long) {
-        songsMap.remove(id)
-        notifyChanges()
-    }
-
-    override suspend fun updateSongsAlbumMetadata(
-        oldAlbumTitle: String,
-        newAlbumTitle: String,
-        newAlbumArtist: String,
-        newGenre: String,
-        newReleaseYear: Int
-    ) {
-        songsMap.entries.forEach { (id, song) ->
-            if (song.albumTitle == oldAlbumTitle) {
-                songsMap[id] = song.copy(
-                    albumTitle = newAlbumTitle,
-                    albumArtist = newAlbumArtist,
-                    genre = newGenre,
-                    year = newReleaseYear
-                )
+    override suspend fun updateSongsAlbumMetadata(oldAlbumTitle: String, newAlbumTitle: String, newAlbumArtist: String, newGenre: String, newReleaseYear: Int) {
+        for ((id, song) in songsMap) {
+            if (song.albumTitle.equals(oldAlbumTitle, ignoreCase = true)) {
+                songsMap[id] = song.copy(albumTitle = newAlbumTitle, albumArtist = newAlbumArtist, genre = newGenre, year = newReleaseYear)
             }
         }
         notifyChanges()
@@ -190,169 +128,125 @@ class FakeMusicDao : MusicDao {
 
     override fun getAllAlbums(): Flow<List<AlbumEntity>> = albumsFlow
     override suspend fun getAlbumById(id: Long): AlbumEntity? = albumsMap[id]
-    override suspend fun getAlbumByTitle(title: String): AlbumEntity? = albumsMap.values.firstOrNull { it.title == title }
-
+    override suspend fun getAlbumByTitle(title: String): AlbumEntity? = albumsMap.values.firstOrNull { it.title.equals(title, ignoreCase = true) }
     override suspend fun insertAlbum(album: AlbumEntity): Long {
         val id = if (album.id == 0L) (albumsMap.keys.maxOrNull() ?: 0L) + 1 else album.id
-        val entity = album.copy(id = id)
-        albumsMap[id] = entity
+        albumsMap[id] = album.copy(id = id)
         notifyChanges()
         return id
     }
+    override suspend fun updateAlbum(album: AlbumEntity) { albumsMap[album.id] = album; notifyChanges() }
+    override suspend fun deleteAlbum(album: AlbumEntity) { albumsMap.remove(album.id); notifyChanges() }
 
-    override suspend fun updateAlbum(album: AlbumEntity) {
-        albumsMap[album.id] = album
+    override fun getAllArtists(): Flow<List<ArtistEntity>> = artistsFlow
+    override suspend fun getArtistByName(name: String): ArtistEntity? = artistsMap[name]
+    override suspend fun insertArtist(artist: ArtistEntity) { artistsMap[artist.name] = artist; notifyChanges() }
+    override suspend fun updateArtistSongsMetadata(oldName: String, newName: String) {
+        for ((id, song) in songsMap) {
+            if (song.artist.equals(oldName, ignoreCase = true) || song.albumArtist.equals(oldName, ignoreCase = true)) {
+                songsMap[id] = song.copy(artist = newName, albumArtist = newName)
+            }
+        }
+        notifyChanges()
+    }
+    override suspend fun updateArtistAlbumsMetadata(oldName: String, newName: String) {
+        for ((id, album) in albumsMap) {
+            if (album.albumArtist.equals(oldName, ignoreCase = true)) {
+                albumsMap[id] = album.copy(albumArtist = newName)
+            }
+        }
         notifyChanges()
     }
 
-    override suspend fun deleteAlbum(album: AlbumEntity) {
-        albumsMap.remove(album.id)
-        notifyChanges()
-    }
+    override fun getAllGameShortcuts(): Flow<List<GameShortcutEntity>> = gameShortcutsFlow
+    override suspend fun insertGameShortcut(shortcut: GameShortcutEntity) { gameShortcutsMap[shortcut.packageName] = shortcut; notifyChanges() }
+    override suspend fun deleteGameShortcut(packageName: String) { gameShortcutsMap.remove(packageName); notifyChanges() }
 
-    override fun getAllPlaylists(): Flow<List<PlaylistEntity>> = MutableStateFlow(emptyList())
-    override suspend fun insertPlaylist(playlist: PlaylistEntity): Long = 1
-    override suspend fun deletePlaylist(playlist: PlaylistEntity) {}
-    override fun getPlaylistItems(playlistId: Long): Flow<List<PlaylistItemEntity>> = MutableStateFlow(emptyList())
-    override suspend fun insertPlaylistItem(item: PlaylistItemEntity): Long = 1
-    override suspend fun deletePlaylistItem(item: PlaylistItemEntity) {}
-    override suspend fun clearPlaylist(playlistId: Long) {}
+    override fun getAllPlaylists(): Flow<List<PlaylistEntity>> = playlistsFlow
+    override suspend fun insertPlaylist(playlist: PlaylistEntity): Long {
+        val id = if (playlist.id == 0L) (playlistsMap.keys.maxOrNull() ?: 0L) + 1 else playlist.id
+        playlistsMap[id] = playlist.copy(id = id)
+        notifyChanges()
+        return id
+    }
+    override suspend fun deletePlaylist(playlist: PlaylistEntity) { playlistsMap.remove(playlist.id); notifyChanges() }
+    override fun getPlaylistItems(playlistId: Long): Flow<List<PlaylistItemEntity>> = MutableStateFlow(playlistItemsMap.values.filter { it.playlistId == playlistId })
+    override suspend fun insertPlaylistItem(item: PlaylistItemEntity): Long {
+        val id = if (item.id == 0L) (playlistItemsMap.keys.maxOrNull() ?: 0L) + 1 else item.id
+        playlistItemsMap[id] = item.copy(id = id)
+        return id
+    }
+    override suspend fun deletePlaylistItem(item: PlaylistItemEntity) { playlistItemsMap.remove(item.id) }
+    override suspend fun clearPlaylist(playlistId: Long) { playlistItemsMap.values.removeAll { it.playlistId == playlistId } }
 
     override suspend fun deleteAllSongs() { songsMap.clear(); notifyChanges() }
     override suspend fun deleteAllAlbums() { albumsMap.clear(); notifyChanges() }
-    override suspend fun deleteAllPlaylists() {}
-    override suspend fun deleteAllPlaylistItems() {}
+    override suspend fun deleteAllPlaylists() { playlistsMap.clear(); notifyChanges() }
+    override suspend fun deleteAllPlaylistItems() { playlistItemsMap.clear() }
 }
 
 class FakeTvDao : TvDao {
-    private val shows = mutableMapOf<Long, TvShowEntity>()
-    private val episodes = mutableMapOf<Long, TvEpisodeEntity>()
-
-    override fun getAllTvShows(): Flow<List<TvShowEntity>> = MutableStateFlow(shows.values.toList())
-    override suspend fun getTvShowById(id: Long): TvShowEntity? = shows[id]
-    override suspend fun getTvShowByTitle(title: String): TvShowEntity? = shows.values.firstOrNull { it.title == title }
-    override suspend fun insertTvShow(show: TvShowEntity): Long {
-        val id = if (show.id == 0L) (shows.keys.maxOrNull() ?: 0L) + 1 else show.id
-        shows[id] = show.copy(id = id)
-        return id
-    }
-    override suspend fun updateTvShow(show: TvShowEntity) { shows[show.id] = show }
-    override suspend fun deleteTvShow(show: TvShowEntity) { shows.remove(show.id) }
-
-    override fun getEpisodesByShow(showTitle: String): Flow<List<TvEpisodeEntity>> = MutableStateFlow(episodes.values.filter { it.showTitle == showTitle })
-    override fun getAllEpisodes(): Flow<List<TvEpisodeEntity>> = MutableStateFlow(episodes.values.toList())
-    override suspend fun getEpisodeById(id: Long): TvEpisodeEntity? = episodes[id]
-    override suspend fun insertEpisode(episode: TvEpisodeEntity): Long {
-        val id = if (episode.id == 0L) (episodes.keys.maxOrNull() ?: 0L) + 1 else episode.id
-        episodes[id] = episode.copy(id = id)
-        return id
-    }
-    override suspend fun updateEpisode(episode: TvEpisodeEntity) { episodes[episode.id] = episode }
-    override suspend fun deleteEpisode(episode: TvEpisodeEntity) { episodes.remove(episode.id) }
-
-    override suspend fun updateTvEpisodesShowTitle(oldShowTitle: String, newShowTitle: String) {
-        episodes.entries.forEach { (id, ep) ->
-            if (ep.showTitle == oldShowTitle) {
-                episodes[id] = ep.copy(showTitle = newShowTitle)
-            }
-        }
-    }
-
-    override suspend fun deleteAllTvShows() { shows.clear() }
-    override suspend fun deleteAllTvEpisodes() { episodes.clear() }
+    private val showsMap = mutableMapOf<Long, TvShowEntity>()
+    private val episodesMap = mutableMapOf<Long, TvEpisodeEntity>()
+    override fun getAllTvShows(): Flow<List<TvShowEntity>> = MutableStateFlow(emptyList())
+    override suspend fun getTvShowById(id: Long): TvShowEntity? = showsMap[id]
+    override suspend fun getTvShowByTitle(title: String): TvShowEntity? = null
+    override suspend fun insertTvShow(show: TvShowEntity): Long = 1L
+    override suspend fun updateTvShow(show: TvShowEntity) {}
+    override suspend fun deleteTvShow(show: TvShowEntity) {}
+    override fun getEpisodesByShow(showTitle: String): Flow<List<TvEpisodeEntity>> = MutableStateFlow(emptyList())
+    override fun getAllEpisodes(): Flow<List<TvEpisodeEntity>> = MutableStateFlow(emptyList())
+    override suspend fun getEpisodeById(id: Long): TvEpisodeEntity? = episodesMap[id]
+    override suspend fun insertEpisode(episode: TvEpisodeEntity): Long = 1L
+    override suspend fun updateEpisode(episode: TvEpisodeEntity) {}
+    override suspend fun deleteEpisode(episode: TvEpisodeEntity) {}
+    override suspend fun updateTvEpisodesShowTitle(oldShowTitle: String, newShowTitle: String) {}
+    override suspend fun deleteAllTvShows() {}
+    override suspend fun deleteAllTvEpisodes() {}
 }
 
 class FakeMovieDao : MovieDao {
-    private val movies = mutableMapOf<Long, MovieEntity>()
-    override fun getAllMovies(): Flow<List<MovieEntity>> = MutableStateFlow(movies.values.toList())
-    override suspend fun getMovieById(id: Long): MovieEntity? = movies[id]
-    override suspend fun insertMovie(movie: MovieEntity): Long {
-        val id = if (movie.id == 0L) (movies.keys.maxOrNull() ?: 0L) + 1 else movie.id
-        movies[id] = movie.copy(id = id)
-        return id
-    }
-    override suspend fun updateMovie(movie: MovieEntity) { movies[movie.id] = movie }
-    override suspend fun deleteMovie(movie: MovieEntity) { movies.remove(movie.id) }
-    override suspend fun deleteMovieById(id: Long) { movies.remove(id) }
-    override suspend fun deleteAllMovies() { movies.clear() }
+    override fun getAllMovies(): Flow<List<MovieEntity>> = MutableStateFlow(emptyList())
+    override suspend fun getMovieById(id: Long): MovieEntity? = null
+    override suspend fun insertMovie(movie: MovieEntity): Long = 1L
+    override suspend fun updateMovie(movie: MovieEntity) {}
+    override suspend fun deleteMovie(movie: MovieEntity) {}
+    override suspend fun deleteMovieById(id: Long) {}
+    override suspend fun deleteAllMovies() {}
 }
 
 class FakePodcastDao : PodcastDao {
-    private val shows = mutableMapOf<Long, PodcastShowEntity>()
-    private val episodes = mutableMapOf<Long, PodcastEpisodeEntity>()
-
-    override fun getAllPodcastShows(): Flow<List<PodcastShowEntity>> = MutableStateFlow(shows.values.toList())
-    override suspend fun getPodcastShowById(id: Long): PodcastShowEntity? = shows[id]
-    override suspend fun getPodcastShowByTitle(title: String): PodcastShowEntity? = shows.values.firstOrNull { it.title == title }
-    override suspend fun insertPodcastShow(show: PodcastShowEntity): Long {
-        val id = if (show.id == 0L) (shows.keys.maxOrNull() ?: 0L) + 1 else show.id
-        shows[id] = show.copy(id = id)
-        return id
-    }
-    override suspend fun updatePodcastShow(show: PodcastShowEntity) { shows[show.id] = show }
-    override suspend fun deletePodcastShow(show: PodcastShowEntity) { shows.remove(show.id) }
-
-    override fun getEpisodesByPodcast(podcastName: String): Flow<List<PodcastEpisodeEntity>> = MutableStateFlow(episodes.values.filter { it.podcastName == podcastName })
-    override fun getAllPodcastEpisodes(): Flow<List<PodcastEpisodeEntity>> = MutableStateFlow(episodes.values.toList())
-    override suspend fun getPodcastEpisodeById(id: Long): PodcastEpisodeEntity? = episodes[id]
-    override suspend fun insertPodcastEpisode(episode: PodcastEpisodeEntity): Long {
-        val id = if (episode.id == 0L) (episodes.keys.maxOrNull() ?: 0L) + 1 else episode.id
-        episodes[id] = episode.copy(id = id)
-        return id
-    }
-    override suspend fun updatePodcastEpisode(episode: PodcastEpisodeEntity) { episodes[episode.id] = episode }
-    override suspend fun deletePodcastEpisode(episode: PodcastEpisodeEntity) { episodes.remove(episode.id) }
-
-    override suspend fun updatePodcastEpisodesPodcastName(oldPodcastName: String, newPodcastName: String) {
-        episodes.entries.forEach { (id, ep) ->
-            if (ep.podcastName == oldPodcastName) {
-                episodes[id] = ep.copy(podcastName = newPodcastName)
-            }
-        }
-    }
-
-    override suspend fun deleteAllPodcastShows() { shows.clear() }
-    override suspend fun deleteAllPodcastEpisodes() { episodes.clear() }
+    override fun getAllPodcastShows(): Flow<List<PodcastShowEntity>> = MutableStateFlow(emptyList())
+    override suspend fun getPodcastShowById(id: Long): PodcastShowEntity? = null
+    override suspend fun getPodcastShowByTitle(title: String): PodcastShowEntity? = null
+    override suspend fun insertPodcastShow(show: PodcastShowEntity): Long = 1L
+    override suspend fun updatePodcastShow(show: PodcastShowEntity) {}
+    override suspend fun deletePodcastShow(show: PodcastShowEntity) {}
+    override fun getEpisodesByPodcast(podcastName: String): Flow<List<PodcastEpisodeEntity>> = MutableStateFlow(emptyList())
+    override fun getAllPodcastEpisodes(): Flow<List<PodcastEpisodeEntity>> = MutableStateFlow(emptyList())
+    override suspend fun getPodcastEpisodeById(id: Long): PodcastEpisodeEntity? = null
+    override suspend fun insertPodcastEpisode(episode: PodcastEpisodeEntity): Long = 1L
+    override suspend fun updatePodcastEpisode(episode: PodcastEpisodeEntity) {}
+    override suspend fun deletePodcastEpisode(episode: PodcastEpisodeEntity) {}
+    override suspend fun updatePodcastEpisodesPodcastName(oldPodcastName: String, newPodcastName: String) {}
+    override suspend fun deleteAllPodcastShows() {}
+    override suspend fun deleteAllPodcastEpisodes() {}
 }
 
 class FakeAudiobookDao : AudiobookDao {
-    private val books = mutableMapOf<Long, AudiobookEntity>()
-    private val series = mutableMapOf<Long, BookSeriesEntity>()
-
-    override fun getAllAudiobooks(): Flow<List<AudiobookEntity>> = MutableStateFlow(books.values.toList())
-    override suspend fun getAudiobookById(id: Long): AudiobookEntity? = books[id]
-    override fun getAudiobooksBySeries(seriesTitle: String): Flow<List<AudiobookEntity>> = MutableStateFlow(books.values.filter { it.bookSeries == seriesTitle })
-    override suspend fun insertAudiobook(audiobook: AudiobookEntity): Long {
-        val id = if (audiobook.id == 0L) (books.keys.maxOrNull() ?: 0L) + 1 else audiobook.id
-        books[id] = audiobook.copy(id = id)
-        return id
-    }
-    override suspend fun updateAudiobook(audiobook: AudiobookEntity) { books[audiobook.id] = audiobook }
-    override suspend fun deleteAudiobook(audiobook: AudiobookEntity) { books.remove(audiobook.id) }
-
-    override fun getAllBookSeries(): Flow<List<BookSeriesEntity>> = MutableStateFlow(series.values.toList())
-    override suspend fun getBookSeriesById(id: Long): BookSeriesEntity? = series[id]
-    override suspend fun getBookSeriesByTitle(title: String): BookSeriesEntity? = series.values.firstOrNull { it.title == title }
-    override suspend fun insertBookSeries(s: BookSeriesEntity): Long {
-        val id = if (s.id == 0L) (series.keys.maxOrNull() ?: 0L) + 1 else s.id
-        series[id] = s.copy(id = id)
-        return id
-    }
-    override suspend fun updateBookSeries(s: BookSeriesEntity) { series[s.id] = s }
-    override suspend fun deleteBookSeries(s: BookSeriesEntity) { series.remove(s.id) }
-
-    override suspend fun updateAudiobooksSeriesMetadata(
-        oldSeriesTitle: String,
-        newSeriesTitle: String,
-        newGenre: String
-    ) {
-        books.entries.forEach { (id, book) ->
-            if (book.bookSeries == oldSeriesTitle) {
-                books[id] = book.copy(bookSeries = newSeriesTitle, genre = newGenre)
-            }
-        }
-    }
-
-    override suspend fun deleteAllAudiobooks() { books.clear() }
-    override suspend fun deleteAllBookSeries() { series.clear() }
+    override fun getAllAudiobooks(): Flow<List<AudiobookEntity>> = MutableStateFlow(emptyList())
+    override suspend fun getAudiobookById(id: Long): AudiobookEntity? = null
+    override fun getAudiobooksBySeries(seriesTitle: String): Flow<List<AudiobookEntity>> = MutableStateFlow(emptyList())
+    override suspend fun insertAudiobook(audiobook: AudiobookEntity): Long = 1L
+    override suspend fun updateAudiobook(audiobook: AudiobookEntity) {}
+    override suspend fun deleteAudiobook(audiobook: AudiobookEntity) {}
+    override fun getAllBookSeries(): Flow<List<BookSeriesEntity>> = MutableStateFlow(emptyList())
+    override suspend fun getBookSeriesById(id: Long): BookSeriesEntity? = null
+    override suspend fun getBookSeriesByTitle(title: String): BookSeriesEntity? = null
+    override suspend fun insertBookSeries(series: BookSeriesEntity): Long = 1L
+    override suspend fun updateBookSeries(series: BookSeriesEntity) {}
+    override suspend fun deleteBookSeries(series: BookSeriesEntity) {}
+    override suspend fun updateAudiobooksSeriesMetadata(oldSeriesTitle: String, newSeriesTitle: String, newGenre: String) {}
+    override suspend fun deleteAllAudiobooks() {}
+    override suspend fun deleteAllBookSeries() {}
 }

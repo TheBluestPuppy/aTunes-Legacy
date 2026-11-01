@@ -10,8 +10,10 @@ import com.example.atuneslegacy.data.local.dao.MusicDao
 import com.example.atuneslegacy.data.local.dao.PodcastDao
 import com.example.atuneslegacy.data.local.dao.TvDao
 import com.example.atuneslegacy.data.local.entity.AlbumEntity
+import com.example.atuneslegacy.data.local.entity.ArtistEntity
 import com.example.atuneslegacy.data.local.entity.AudiobookEntity
 import com.example.atuneslegacy.data.local.entity.BookSeriesEntity
+import com.example.atuneslegacy.data.local.entity.GameShortcutEntity
 import com.example.atuneslegacy.data.local.entity.MovieEntity
 import com.example.atuneslegacy.data.local.entity.PlaylistEntity
 import com.example.atuneslegacy.data.local.entity.PlaylistItemEntity
@@ -25,6 +27,8 @@ import com.example.atuneslegacy.data.local.entity.TvShowEntity
     entities = [
         SongEntity::class,
         AlbumEntity::class,
+        ArtistEntity::class,
+        GameShortcutEntity::class,
         PlaylistEntity::class,
         PlaylistItemEntity::class,
         TvShowEntity::class,
@@ -35,7 +39,7 @@ import com.example.atuneslegacy.data.local.entity.TvShowEntity
         AudiobookEntity::class,
         BookSeriesEntity::class
     ],
-    version = 1,
+    version = 3,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {

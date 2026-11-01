@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.AddCircle
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Cloud
+import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Palette
@@ -37,6 +38,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -63,6 +65,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.example.atuneslegacy.ui.components.SpotifyDownloaderBrowser
 import com.example.atuneslegacy.ui.theme.AppTheme
 import com.example.atuneslegacy.ui.theme.LocalThemeColors
 import com.example.atuneslegacy.ui.viewmodel.MainViewModel
@@ -88,38 +91,57 @@ fun SettingsScreen(
 
     var showThemeDialog by remember { mutableStateOf(false) }
     var showAccountDialog by remember { mutableStateOf(false) }
+    var showSpotifyBrowser by remember { mutableStateOf(false) }
 
     var emailInput by remember { mutableStateOf("") }
     var passwordInput by remember { mutableStateOf("") }
 
+    if (showSpotifyBrowser) {
+        SpotifyDownloaderBrowser(
+            onDismiss = { showSpotifyBrowser = false },
+            modifier = modifier
+        )
+        return
+    }
+
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(if (themeColors.isDark) themeColors.background else Color(0xFFD8DCE5))
+            .background(if (themeColors.isAppleMusic) themeColors.background else (if (themeColors.isDark) themeColors.background else Color(0xFFD8DCE5)))
             .verticalScroll(rememberScrollState())
     ) {
-        // Classic iOS Header Bar
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(
-                    brush = Brush.verticalGradient(
-                        colors = if (themeColors.isDark) {
-                            listOf(Color(0xFF32363C), Color(0xFF1E2125))
-                        } else {
-                            listOf(Color(0xFF9EBCD0), Color(0xFF5B82A8))
-                        }
-                    )
-                )
-                .padding(vertical = 14.dp),
-            contentAlignment = Alignment.Center
-        ) {
+        if (themeColors.isAppleMusic) {
             Text(
                 text = "Settings",
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.White
+                fontSize = 32.sp,
+                fontWeight = FontWeight.ExtraBold,
+                color = themeColors.textPrimary,
+                modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 8.dp)
             )
+        } else {
+            // Classic iOS Header Bar
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(
+                        brush = Brush.verticalGradient(
+                            colors = if (themeColors.isDark) {
+                                listOf(Color(0xFF32363C), Color(0xFF1E2125))
+                            } else {
+                                listOf(Color(0xFF9EBCD0), Color(0xFF5B82A8))
+                            }
+                        )
+                    )
+                    .padding(vertical = 14.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "Settings",
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+            }
         }
 
         Column(
@@ -165,14 +187,14 @@ fun SettingsScreen(
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = userName,
-                            fontSize = 16.sp,
+                            fontSize = 17.sp,
                             fontWeight = FontWeight.Bold,
                             color = themeColors.textPrimary
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
                             text = userBio,
-                            fontSize = 11.sp,
+                            fontSize = 12.sp,
                             color = themeColors.textSecondary,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
@@ -233,6 +255,17 @@ fun SettingsScreen(
                     title = "Add Media to Library",
                     value = "${songs.size} items",
                     onClick = { viewModel.setShowAddMediaDialog(true) }
+                )
+            }
+
+            // Group 5: SpotiDownloader Browser
+            IOSGroupCard(themeColors = themeColors) {
+                IOSCell(
+                    icon = Icons.Default.CloudDownload,
+                    iconBg = Color(0xFF1DB954),
+                    title = "SpotiDownloader Browser",
+                    value = "spotidownloader.com",
+                    onClick = { showSpotifyBrowser = true }
                 )
             }
         }
@@ -331,9 +364,9 @@ fun IOSGroupCard(
     content: @Composable () -> Unit
 ) {
     Surface(
-        shape = RoundedCornerShape(10.dp),
+        shape = RoundedCornerShape(12.dp),
         color = themeColors.surface,
-        border = androidx.compose.foundation.BorderStroke(1.dp, themeColors.surfaceBorder),
+        border = androidx.compose.foundation.BorderStroke(0.5.dp, themeColors.surfaceBorder),
         shadowElevation = 1.dp,
         modifier = Modifier.fillMaxWidth()
     ) {
@@ -357,17 +390,17 @@ fun IOSCell(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 10.dp),
+            .padding(horizontal = 14.dp, vertical = 11.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Box(
                 modifier = Modifier
-                    .size(30.dp)
+                    .size(28.dp)
                     .clip(RoundedCornerShape(6.dp))
                     .background(iconBg),
                 contentAlignment = Alignment.Center
@@ -376,7 +409,7 @@ fun IOSCell(
                     imageVector = icon,
                     contentDescription = null,
                     tint = Color.White,
-                    modifier = Modifier.size(18.dp)
+                    modifier = Modifier.size(16.dp)
                 )
             }
             Text(
@@ -421,17 +454,17 @@ fun IOSToggleCell(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 8.dp),
+            .padding(horizontal = 14.dp, vertical = 9.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Box(
                 modifier = Modifier
-                    .size(30.dp)
+                    .size(28.dp)
                     .clip(RoundedCornerShape(6.dp))
                     .background(iconBg),
                 contentAlignment = Alignment.Center
@@ -440,7 +473,7 @@ fun IOSToggleCell(
                     imageVector = icon,
                     contentDescription = null,
                     tint = Color.White,
-                    modifier = Modifier.size(18.dp)
+                    modifier = Modifier.size(16.dp)
                 )
             }
             Text(
@@ -467,6 +500,6 @@ fun IOSDivider(themeColors: com.example.atuneslegacy.ui.theme.ThemeColors) {
     HorizontalDivider(
         color = themeColors.surfaceBorder,
         thickness = 0.5.dp,
-        modifier = Modifier.padding(start = 52.dp)
+        modifier = Modifier.padding(start = 54.dp)
     )
 }

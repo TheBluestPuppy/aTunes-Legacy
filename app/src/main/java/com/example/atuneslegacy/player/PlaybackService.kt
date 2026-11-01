@@ -1,17 +1,24 @@
 package com.example.atuneslegacy.player
 
+import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 
+@UnstableApi
 class PlaybackService : MediaSessionService() {
     private var mediaSession: MediaSession? = null
+    lateinit var player: ExoPlayer
+        private set
 
     override fun onCreate() {
         super.onCreate()
-        val player = ExoPlayer.Builder(this).build()
+        player = ExoPlayer.Builder(this).build()
         mediaSession = MediaSession.Builder(this, player).build()
     }
+
+    override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? =
+        mediaSession
 
     override fun onDestroy() {
         mediaSession?.run {
@@ -21,7 +28,4 @@ class PlaybackService : MediaSessionService() {
         }
         super.onDestroy()
     }
-
-    override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? =
-        mediaSession
 }

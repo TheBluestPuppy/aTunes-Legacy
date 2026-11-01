@@ -7,6 +7,8 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Update
 import com.example.atuneslegacy.data.local.entity.AlbumEntity
+import com.example.atuneslegacy.data.local.entity.ArtistEntity
+import com.example.atuneslegacy.data.local.entity.GameShortcutEntity
 import com.example.atuneslegacy.data.local.entity.PlaylistEntity
 import com.example.atuneslegacy.data.local.entity.PlaylistItemEntity
 import com.example.atuneslegacy.data.local.entity.SongEntity
@@ -45,7 +47,6 @@ interface MusicDao {
     @Query("DELETE FROM songs WHERE id = :id")
     suspend fun deleteSongById(id: Long)
 
-    // Cascade update query for Songs when Album metadata changes
     @Query("""
         UPDATE songs 
         SET albumTitle = :newAlbumTitle, albumArtist = :newAlbumArtist, genre = :newGenre, year = :newReleaseYear 
@@ -77,6 +78,32 @@ interface MusicDao {
 
     @Delete
     suspend fun deleteAlbum(album: AlbumEntity)
+
+    // Artist queries & updates
+    @Query("SELECT * FROM artists ORDER BY name ASC")
+    fun getAllArtists(): Flow<List<ArtistEntity>>
+
+    @Query("SELECT * FROM artists WHERE name = :name LIMIT 1")
+    suspend fun getArtistByName(name: String): ArtistEntity?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertArtist(artist: ArtistEntity)
+
+    @Query("UPDATE songs SET artist = :newName, albumArtist = :newName WHERE artist = :oldName")
+    suspend fun updateArtistSongsMetadata(oldName: String, newName: String)
+
+    @Query("UPDATE albums SET albumArtist = :newName WHERE albumArtist = :oldName")
+    suspend fun updateArtistAlbumsMetadata(oldName: String, newName: String)
+
+    // Game Shortcut queries
+    @Query("SELECT * FROM game_shortcuts")
+    fun getAllGameShortcuts(): Flow<List<GameShortcutEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertGameShortcut(shortcut: GameShortcutEntity)
+
+    @Query("DELETE FROM game_shortcuts WHERE packageName = :packageName")
+    suspend fun deleteGameShortcut(packageName: String)
 
     // Playlist queries
     @Query("SELECT * FROM playlists ORDER BY title ASC")

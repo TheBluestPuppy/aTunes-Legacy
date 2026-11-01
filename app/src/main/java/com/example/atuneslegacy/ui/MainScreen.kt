@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.res.Configuration
+import androidx.activity.compose.BackHandler
 import androidx.compose.ui.platform.LocalConfiguration
 import com.example.atuneslegacy.ui.components.CoverFlowScreen
 import androidx.compose.foundation.background
@@ -17,6 +18,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -81,10 +83,12 @@ import com.example.atuneslegacy.ui.components.TvShowMetadataDialog
 import com.example.atuneslegacy.ui.components.VideoPlayerOverlay
 import com.example.atuneslegacy.ui.components.MusicPlayerOverlay
 import com.example.atuneslegacy.ui.navigation.MainTab
+import com.example.atuneslegacy.ui.navigation.MusicSubTab
 import com.example.atuneslegacy.ui.screens.AudiobooksScreen
 import com.example.atuneslegacy.ui.screens.GamesScreen
 import com.example.atuneslegacy.ui.screens.MoviesScreen
 import com.example.atuneslegacy.ui.screens.MusicScreen
+import com.example.atuneslegacy.ui.screens.OnboardingWizardScreen
 import com.example.atuneslegacy.ui.screens.PhotosScreen
 import com.example.atuneslegacy.ui.screens.PodcastsScreen
 import com.example.atuneslegacy.ui.screens.ProfileScreen
@@ -105,6 +109,17 @@ fun MainScreen(
     viewModel: MainViewModel,
     modifier: Modifier = Modifier
 ) {
+    val isFirstLaunchCompleted by viewModel.isFirstLaunchCompleted.collectAsState()
+
+    if (!isFirstLaunchCompleted) {
+        OnboardingWizardScreen(
+            viewModel = viewModel,
+            onComplete = { viewModel.completeFirstLaunch() },
+            modifier = modifier
+        )
+        return
+    }
+
     val configuration = LocalConfiguration.current
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
     if (isLandscape) {
@@ -115,6 +130,32 @@ fun MainScreen(
     val themeColors = LocalThemeColors.current
     val currentTab by viewModel.currentTab.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
+    val showProfilePage by viewModel.showProfilePage.collectAsState()
+    val selectedAlbum by viewModel.selectedAlbum.collectAsState()
+    val selectedArtist by viewModel.selectedArtist.collectAsState()
+    val selectedGenre by viewModel.selectedGenre.collectAsState()
+    val selectedPlaylist by viewModel.selectedPlaylist.collectAsState()
+    val musicSubTab by viewModel.musicSubTab.collectAsState()
+
+    val canGoBack = showProfilePage ||
+            selectedAlbum != null ||
+            selectedArtist != null ||
+            selectedGenre != null ||
+            selectedPlaylist != null ||
+            currentTab != MainTab.MUSIC ||
+            musicSubTab != MusicSubTab.SONGS
+
+    BackHandler(enabled = canGoBack) {
+        when {
+            showProfilePage -> viewModel.setShowProfilePage(false)
+            selectedAlbum != null -> viewModel.selectAlbum(null)
+            selectedArtist != null -> viewModel.selectArtist(null)
+            selectedGenre != null -> viewModel.selectGenre(null)
+            selectedPlaylist != null -> viewModel.selectPlaylist(null)
+            currentTab == MainTab.MUSIC && musicSubTab != MusicSubTab.SONGS -> viewModel.selectMusicSubTab(MusicSubTab.SONGS)
+            currentTab != MainTab.MUSIC -> viewModel.selectTab(MainTab.MUSIC)
+        }
+    }
 
     val songs by viewModel.allSongs.collectAsState()
     val albums by viewModel.allAlbums.collectAsState()
@@ -127,7 +168,6 @@ fun MainScreen(
     val showAddMediaDialog by viewModel.showAddMediaDialog.collectAsState()
     val showVideoPlayer by viewModel.mediaPlayerManager.showVideoPlayer.collectAsState()
     val showMusicPlayer by viewModel.mediaPlayerManager.showMusicPlayer.collectAsState()
-    val showProfilePage by viewModel.showProfilePage.collectAsState()
 
     // Screen Off Listener for Video Playback Control
     val context = LocalContext.current
@@ -138,7 +178,7 @@ fun MainScreen(
                     val currentMedia = viewModel.mediaPlayerManager.currentMedia.value
                     if (currentMedia != null && currentMedia.isVideo) {
                         if (currentMedia.mediaType != MediaType.MUSIC_VIDEO) {
-                            viewModel.mediaPlayerManager.exoPlayer.pause()
+                            viewModel.mediaPlayerManager.exoPlayer?.pause()
                         }
                     }
                 }

@@ -1,13 +1,16 @@
 package com.example.atuneslegacy.player
 
+import android.content.ComponentName
 import android.content.Context
 import android.net.Uri
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
-import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.session.MediaSession
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.session.MediaController
+import androidx.media3.session.SessionToken
+import com.google.common.util.concurrent.MoreExecutors
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -33,10 +36,14 @@ data class MediaItemMetadata(
     val mediaType: MediaType = MediaType.MUSIC
 )
 
+@UnstableApi
 class MediaPlayerManager(context: Context) {
+    private val appContext = context.applicationContext
 
-    val exoPlayer: ExoPlayer = ExoPlayer.Builder(context.applicationContext).build()
-    val mediaSession: MediaSession = MediaSession.Builder(context.applicationContext, exoPlayer).build()
+    private val sessionToken = SessionToken(appContext, ComponentName(appContext, PlaybackService::class.java))
+    private val controllerFuture = MediaController.Builder(appContext, sessionToken).buildAsync()
+
+    private var mediaController: MediaController? = null
 
     private val scope = CoroutineScope(Dispatchers.Main + Job())
     private var progressJob: Job? = null
@@ -65,6 +72,37 @@ class MediaPlayerManager(context: Context) {
     private val _showMusicPlayer = MutableStateFlow(false)
     val showMusicPlayer: StateFlow<Boolean> = _showMusicPlayer.asStateFlow()
 
+    val exoPlayer: Player?
+        get() = mediaController
+
+    init {
+        controllerFuture.addListener({
+            mediaController = controllerFuture.get()
+            mediaController?.addListener(object : Player.Listener {
+                override fun onIsPlayingChanged(playing: Boolean) {
+                    _isPlaying.value = playing
+                    if (playing) {
+                        startProgressUpdate()
+                    } else {
+                        stopProgressUpdate()
+                    }
+                }
+
+                override fun onPlaybackStateChanged(playbackState: Int) {
+                    if (playbackState == Player.STATE_READY) {
+                        _durationMs.value = mediaController?.duration?.coerceAtLeast(0L) ?: 0L
+                    } else if (playbackState == Player.STATE_ENDED) {
+                        playNext()
+                    }
+                }
+
+                override fun onPlayerError(error: PlaybackException) {
+                    _isPlaying.value = false
+                }
+            })
+        }, MoreExecutors.directExecutor())
+    }
+
     fun showMusicPlayer() {
         if (_currentMedia.value != null && !_currentMedia.value!!.isVideo) {
             _showMusicPlayer.value = true
@@ -73,31 +111,6 @@ class MediaPlayerManager(context: Context) {
 
     fun hideMusicPlayer() {
         _showMusicPlayer.value = false
-    }
-
-    init {
-        exoPlayer.addListener(object : Player.Listener {
-            override fun onIsPlayingChanged(playing: Boolean) {
-                _isPlaying.value = playing
-                if (playing) {
-                    startProgressUpdate()
-                } else {
-                    stopProgressUpdate()
-                }
-            }
-
-            override fun onPlaybackStateChanged(playbackState: Int) {
-                if (playbackState == Player.STATE_READY) {
-                    _durationMs.value = exoPlayer.duration.coerceAtLeast(0L)
-                } else if (playbackState == Player.STATE_ENDED) {
-                    playNext()
-                }
-            }
-
-            override fun onPlayerError(error: PlaybackException) {
-                _isPlaying.value = false
-            }
-        })
     }
 
     fun playMedia(mediaItem: MediaItemMetadata, playlist: List<MediaItemMetadata> = listOf(mediaItem)) {
@@ -114,25 +127,31 @@ class MediaPlayerManager(context: Context) {
                 .setTitle(mediaItem.title)
                 .setArtist(mediaItem.subtitle)
                 .setAlbumTitle(mediaItem.albumOrCategory)
+                .setArtworkUri(if (mediaItem.artworkUri.isNotBlank()) Uri.parse(mediaItem.artworkUri) else null)
                 .build()
             val exoMediaItem = MediaItem.Builder()
                 .setUri(uri)
                 .setMediaMetadata(metadata)
                 .build()
-            exoPlayer.setMediaItem(exoMediaItem)
-            exoPlayer.prepare()
-            exoPlayer.play()
+
+            mediaController?.apply {
+                setMediaItem(exoMediaItem)
+                prepare()
+                play()
+            }
         } catch (e: Exception) {
             e.printStackTrace()
         }
     }
 
     fun togglePlayPause() {
-        if (exoPlayer.isPlaying) {
-            exoPlayer.pause()
-        } else {
-            if (_currentMedia.value != null) {
-                exoPlayer.play()
+        mediaController?.let { controller ->
+            if (controller.isPlaying) {
+                controller.pause()
+            } else {
+                if (_currentMedia.value != null) {
+                    controller.play()
+                }
             }
         }
     }
@@ -151,17 +170,17 @@ class MediaPlayerManager(context: Context) {
         if (currentList.isNotEmpty() && prevIdx >= 0) {
             playMedia(currentList[prevIdx], currentList)
         } else {
-            exoPlayer.seekTo(0)
+            mediaController?.seekTo(0)
         }
     }
 
     fun seekTo(positionMs: Long) {
-        exoPlayer.seekTo(positionMs)
+        mediaController?.seekTo(positionMs)
         _currentPositionMs.value = positionMs
     }
 
     fun setPlaybackSpeed(speed: Float) {
-        exoPlayer.setPlaybackSpeed(speed)
+        mediaController?.setPlaybackSpeed(speed)
     }
 
     fun hideVideoPlayer() {
@@ -178,9 +197,11 @@ class MediaPlayerManager(context: Context) {
         stopProgressUpdate()
         progressJob = scope.launch {
             while (isActive) {
-                if (exoPlayer.isPlaying) {
-                    _currentPositionMs.value = exoPlayer.currentPosition.coerceAtLeast(0L)
-                    _durationMs.value = exoPlayer.duration.coerceAtLeast(0L)
+                mediaController?.let { controller ->
+                    if (controller.isPlaying) {
+                        _currentPositionMs.value = controller.currentPosition.coerceAtLeast(0L)
+                        _durationMs.value = controller.duration.coerceAtLeast(0L)
+                    }
                 }
                 delay(500)
             }
@@ -194,7 +215,7 @@ class MediaPlayerManager(context: Context) {
 
     fun release() {
         stopProgressUpdate()
-        mediaSession.release()
-        exoPlayer.release()
+        MediaController.releaseFuture(controllerFuture)
+        mediaController = null
     }
 }

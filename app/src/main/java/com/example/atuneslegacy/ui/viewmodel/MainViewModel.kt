@@ -7,10 +7,14 @@ import androidx.lifecycle.viewModelScope
 import com.example.atuneslegacy.data.auth.AuthHelper
 import com.example.atuneslegacy.data.importing.ImportCategory
 import com.example.atuneslegacy.data.importing.MediaImportHelper
+import com.example.atuneslegacy.data.importing.spotify.*
+import com.example.atuneslegacy.data.preferences.UserProfilePreferences
 import com.example.atuneslegacy.data.local.AppDatabase
 import com.example.atuneslegacy.data.local.entity.AlbumEntity
+import com.example.atuneslegacy.data.local.entity.ArtistEntity
 import com.example.atuneslegacy.data.local.entity.AudiobookEntity
 import com.example.atuneslegacy.data.local.entity.BookSeriesEntity
+import com.example.atuneslegacy.data.local.entity.GameShortcutEntity
 import com.example.atuneslegacy.data.local.entity.MovieEntity
 import com.example.atuneslegacy.data.local.entity.PlaylistEntity
 import com.example.atuneslegacy.data.local.entity.PlaylistItemEntity
@@ -55,20 +59,34 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _currentTab = MutableStateFlow(MainTab.MUSIC)
     val currentTab: StateFlow<MainTab> = _currentTab.asStateFlow()
 
-    // Theme State
-    private val _currentTheme = MutableStateFlow(AppTheme.LEGACY_LIGHT)
-    val currentTheme: StateFlow<AppTheme> = _currentTheme.asStateFlow()
+    // Profile & Listening Stats & Theme State (Persisted via DataStore)
+    private val userPrefs = UserProfilePreferences(application)
 
-    fun setTheme(theme: AppTheme) {
-        _currentTheme.value = theme
+    val isFirstLaunchCompleted: StateFlow<Boolean> = userPrefs.isFirstLaunchCompletedFlow
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
+    fun completeFirstLaunch() {
+        viewModelScope.launch {
+            userPrefs.completeFirstLaunch()
+        }
     }
 
-    // Profile & Listening Stats State
-    private val _profilePictureUri = MutableStateFlow<String?>(null)
-    val profilePictureUri: StateFlow<String?> = _profilePictureUri.asStateFlow()
+    val currentTheme: StateFlow<AppTheme> = userPrefs.appThemeFlow
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), AppTheme.LEGACY_LIGHT)
+
+    fun setTheme(theme: AppTheme) {
+        viewModelScope.launch {
+            userPrefs.saveTheme(theme)
+        }
+    }
+
+    val profilePictureUri: StateFlow<String?> = userPrefs.profilePicFlow
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     fun setProfilePictureUri(uri: String?) {
-        _profilePictureUri.value = uri
+        viewModelScope.launch {
+            userPrefs.saveProfilePicture(uri)
+        }
     }
 
     private val _listeningTimeMinutes = MutableStateFlow(320L) // 320 mins (~5.3 hours) listening time
@@ -81,15 +99,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _showProfilePage.value = show
     }
 
-    private val _userName = MutableStateFlow("Vinyl Collector")
-    val userName: StateFlow<String> = _userName.asStateFlow()
+    val userName: StateFlow<String> = userPrefs.userNameFlow
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "Vinyl Collector")
 
-    private val _userBio = MutableStateFlow("Passionate audiophile and local media curator.")
-    val userBio: StateFlow<String> = _userBio.asStateFlow()
+    val userBio: StateFlow<String> = userPrefs.userBioFlow
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "Passionate audiophile and local media curator.")
 
     fun updateUserProfile(name: String, bio: String) {
-        _userName.value = name.trim()
-        _userBio.value = bio.trim()
+        viewModelScope.launch {
+            userPrefs.saveProfile(name.trim(), bio.trim())
+        }
     }
 
     private val _removedGamePackages = MutableStateFlow<Set<String>>(emptySet())
@@ -310,6 +329,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     // --- USER INTERACTION HANDLERS ---
     fun selectTab(tab: MainTab) {
         _currentTab.value = tab
+        _showProfilePage.value = false
+        _selectedAlbum.value = null
+        _selectedArtist.value = null
+        _selectedGenre.value = null
+        _selectedPlaylist.value = null
     }
 
     fun selectMusicSubTab(subTab: MusicSubTab) {
@@ -545,6 +569,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun deleteSong(song: SongEntity) {
         viewModelScope.launch {
             mediaRepository.deleteSong(song)
+            if (song.albumTitle.isNotBlank() && song.albumTitle != "Unknown Album") {
+                val remainingSongs = mediaRepository.getSongsByAlbum(song.albumTitle).first()
+                if (remainingSongs.isEmpty()) {
+                    val album = mediaRepository.getAlbumByTitle(song.albumTitle)
+                    if (album != null) {
+                        mediaRepository.deleteAlbum(album)
+                    }
+                }
+            }
             if (_editingSong.value?.id == song.id) _editingSong.value = null
         }
     }
@@ -1003,6 +1036,122 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     }
                 }
             }
+        }
+    }
+
+    data class SpotifyDownloaderState(
+        val urlInput: String = "",
+        val isProcessing: Boolean = false,
+        val previewMetadata: UnifiedTrackMetadata? = null,
+        val matchResult: MatchResult? = null,
+        val progress: Float = 0f,
+        val status: String = "",
+        val error: String? = null
+    )
+
+    private val _spotifyState = MutableStateFlow(SpotifyDownloaderState())
+    val spotifyState: StateFlow<SpotifyDownloaderState> = _spotifyState.asStateFlow()
+
+    fun updateSpotifyUrl(url: String) {
+        _spotifyState.value = _spotifyState.value.copy(urlInput = url, error = null)
+    }
+
+    fun processSpotifyLink() {
+        val url = _spotifyState.value.urlInput.trim()
+        val parsed = SpotifyLinkParser.parse(url)
+        if (parsed == null) {
+            _spotifyState.value = _spotifyState.value.copy(error = "Invalid Spotify URL or URI format. Supported formats: track, album, playlist, artist.")
+            return
+        }
+
+        viewModelScope.launch {
+            _spotifyState.value = _spotifyState.value.copy(isProcessing = true, error = null, status = "Fetching Spotify metadata...")
+            val metadataList = SpotifyMetadataRepository.fetchMetadata(parsed)
+            if (metadataList.isEmpty()) {
+                _spotifyState.value = _spotifyState.value.copy(isProcessing = false, error = "Failed to retrieve Spotify metadata.")
+                return@launch
+            }
+            val meta = metadataList.first()
+            _spotifyState.value = _spotifyState.value.copy(status = "Searching authorized external music providers...")
+            val candidates = MusicSearchEngine.search(meta)
+            if (candidates.isEmpty()) {
+                _spotifyState.value = _spotifyState.value.copy(
+                    isProcessing = false,
+                    error = "No matching downloadable recording was found in public audio archives for this track."
+                )
+                return@launch
+            }
+            val match = TrackMatchingEngine.match(meta, candidates)
+
+            _spotifyState.value = _spotifyState.value.copy(
+                isProcessing = false,
+                previewMetadata = meta,
+                matchResult = match,
+                status = "Ready to download"
+            )
+        }
+    }
+
+    fun executeSpotifyDownload() {
+        val state = _spotifyState.value
+        val meta = state.previewMetadata ?: return
+        val match = state.matchResult ?: return
+        if (!DownloadPermissionChecker.verify(match.candidate)) {
+            _spotifyState.value = state.copy(error = "Selected candidate does not permit authorized downloading.")
+            return
+        }
+
+        viewModelScope.launch {
+            _spotifyState.value = state.copy(isProcessing = true, status = "Connecting & downloading audio...")
+            val context = getApplication<Application>().applicationContext
+            val success = DownloadManager.download(context, meta, match.candidate, mediaRepository) { progress, status ->
+                _spotifyState.value = _spotifyState.value.copy(progress = progress, status = status)
+            }
+
+            if (success) {
+                _spotifyState.value = SpotifyDownloaderState(status = "Successfully downloaded and added to music library!")
+            } else {
+                _spotifyState.value = _spotifyState.value.copy(isProcessing = false, error = "Download failed.")
+            }
+        }
+    }
+
+    fun cancelSpotifyDownload() {
+        _spotifyState.value = SpotifyDownloaderState()
+    }
+
+    val allArtists: StateFlow<List<ArtistEntity>> = mediaRepository.getAllArtists()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    private val _editingArtist = MutableStateFlow<String?>(null)
+    val editingArtist: StateFlow<String?> = _editingArtist.asStateFlow()
+
+    fun setEditingArtist(artistName: String?) {
+        _editingArtist.value = artistName
+    }
+
+    fun updateArtistMetadata(oldName: String, newName: String, customArtworkUri: String) {
+        viewModelScope.launch {
+            mediaRepository.updateArtistAndCascade(oldName, newName, customArtworkUri)
+            _editingArtist.value = null
+        }
+    }
+
+    val allGameShortcuts: StateFlow<List<GameShortcutEntity>> = mediaRepository.getAllGameShortcuts()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    fun updateGameShortcutMetadata(packageName: String, customName: String, customImageUri: String) {
+        viewModelScope.launch {
+            mediaRepository.insertGameShortcut(
+                GameShortcutEntity(packageName = packageName, customName = customName, customImageUri = customImageUri)
+            )
+        }
+    }
+
+    fun removeGameShortcutCustom(packageName: String) {
+        viewModelScope.launch {
+            mediaRepository.deleteGameShortcut(packageName)
+            removeGameShortcut(packageName)
         }
     }
 }

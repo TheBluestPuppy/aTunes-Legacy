@@ -84,30 +84,30 @@ fun SongTableHeader(modifier: Modifier = Modifier) {
                 )
             )
             .border(width = 0.5.dp, color = Color(0xFFB4B9C5))
-            .padding(horizontal = 8.dp, vertical = 5.dp),
+            .padding(horizontal = 6.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(text = "#", modifier = Modifier.width(28.dp), fontWeight = FontWeight.Bold, fontSize = 11.sp, color = Color(0xFF3C404B))
+        Text(text = "#", modifier = Modifier.width(22.dp), fontWeight = FontWeight.Bold, fontSize = 11.sp, color = Color(0xFF3C404B), maxLines = 1)
         Box(modifier = Modifier.width(1.dp).height(12.dp).background(Color(0xFFC0C5CE)))
-        Spacer(modifier = Modifier.width(6.dp))
+        Spacer(modifier = Modifier.width(4.dp))
 
-        Text(text = "Title", modifier = Modifier.weight(2.5f), fontWeight = FontWeight.Bold, fontSize = 11.sp, color = Color(0xFF3C404B))
+        Text(text = "Title", modifier = Modifier.weight(2.2f), fontWeight = FontWeight.Bold, fontSize = 11.sp, color = Color(0xFF3C404B), maxLines = 1)
         Box(modifier = Modifier.width(1.dp).height(12.dp).background(Color(0xFFC0C5CE)))
-        Spacer(modifier = Modifier.width(6.dp))
+        Spacer(modifier = Modifier.width(4.dp))
 
-        Text(text = "Time", modifier = Modifier.width(50.dp), fontWeight = FontWeight.Bold, fontSize = 11.sp, color = Color(0xFF3C404B))
+        Text(text = "Time", modifier = Modifier.width(42.dp), fontWeight = FontWeight.Bold, fontSize = 11.sp, color = Color(0xFF3C404B), maxLines = 1)
         Box(modifier = Modifier.width(1.dp).height(12.dp).background(Color(0xFFC0C5CE)))
-        Spacer(modifier = Modifier.width(6.dp))
+        Spacer(modifier = Modifier.width(4.dp))
 
-        Text(text = "Artist", modifier = Modifier.weight(2f), fontWeight = FontWeight.Bold, fontSize = 11.sp, color = Color(0xFF3C404B))
+        Text(text = "Artist", modifier = Modifier.weight(1.8f), fontWeight = FontWeight.Bold, fontSize = 11.sp, color = Color(0xFF3C404B), maxLines = 1)
         Box(modifier = Modifier.width(1.dp).height(12.dp).background(Color(0xFFC0C5CE)))
-        Spacer(modifier = Modifier.width(6.dp))
+        Spacer(modifier = Modifier.width(4.dp))
 
-        Text(text = "Album", modifier = Modifier.weight(2f), fontWeight = FontWeight.Bold, fontSize = 11.sp, color = Color(0xFF3C404B))
+        Text(text = "Album", modifier = Modifier.weight(1.8f), fontWeight = FontWeight.Bold, fontSize = 11.sp, color = Color(0xFF3C404B), maxLines = 1)
         Box(modifier = Modifier.width(1.dp).height(12.dp).background(Color(0xFFC0C5CE)))
-        Spacer(modifier = Modifier.width(6.dp))
+        Spacer(modifier = Modifier.width(4.dp))
 
-        Text(text = "Genre", modifier = Modifier.weight(1.5f), fontWeight = FontWeight.Bold, fontSize = 11.sp, color = Color(0xFF3C404B))
+        Text(text = "Genre", modifier = Modifier.weight(1.4f), fontWeight = FontWeight.Bold, fontSize = 11.sp, color = Color(0xFF3C404B), maxLines = 1)
     }
 }
 
@@ -191,24 +191,29 @@ fun SongTableRow(
     }
 
     val backgroundColor = when {
-        isSelected -> Color(0xFF388BFD).copy(alpha = 0.2f)
-        index % 2 == 1 -> Color(0xFFF7F8FA)
+        isSelected -> Color(0xFF2B73E7)
+        index % 2 == 1 -> Color(0xFFF2F5F9)
         else -> Color.White
     }
+
+    val textColorPrimary = if (isSelected) Color.White else Color(0xFF1C1D21)
+    val textColorSecondary = if (isSelected) Color.White.copy(alpha = 0.9f) else Color(0xFF5A606C)
+    val textColorMuted = if (isSelected) Color.White.copy(alpha = 0.8f) else Color(0xFF707682)
 
     Row(
         modifier = modifier
             .fillMaxWidth()
+            .height(34.dp)
             .background(backgroundColor)
             .combinedClickable(onClick = onClick, onLongClick = onLongClick)
-            .padding(horizontal = 12.dp, vertical = 8.dp),
+            .padding(horizontal = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
             text = song.trackNumber.toString(),
             modifier = Modifier.width(30.dp),
             fontSize = 12.sp,
-            color = Color(0xFF707682)
+            color = textColorMuted
         )
         Row(
             modifier = Modifier.weight(2.5f),
@@ -245,7 +250,7 @@ fun SongTableRow(
                 Icon(
                     imageVector = Icons.Default.Movie,
                     contentDescription = "Music Video",
-                    tint = ITunesAccentBlue,
+                    tint = if (isSelected) Color.White else ITunesAccentBlue,
                     modifier = Modifier.size(14.dp).padding(end = 4.dp)
                 )
             }
@@ -253,7 +258,7 @@ fun SongTableRow(
                 text = song.title,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.SemiBold,
-                color = Color(0xFF1C1D21),
+                color = textColorPrimary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
@@ -262,13 +267,13 @@ fun SongTableRow(
             text = formatDuration(song.duration),
             modifier = Modifier.width(55.dp),
             fontSize = 12.sp,
-            color = Color(0xFF5A606C)
+            color = textColorSecondary
         )
         Text(
             text = song.artist,
             modifier = Modifier.weight(2f),
             fontSize = 12.sp,
-            color = Color(0xFF404550),
+            color = textColorSecondary,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
@@ -276,7 +281,7 @@ fun SongTableRow(
             text = song.albumTitle,
             modifier = Modifier.weight(2f),
             fontSize = 12.sp,
-            color = Color(0xFF404550),
+            color = textColorSecondary,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
@@ -284,7 +289,7 @@ fun SongTableRow(
             text = song.genre,
             modifier = Modifier.weight(1.5f),
             fontSize = 12.sp,
-            color = Color(0xFF6B7280),
+            color = textColorMuted,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )

@@ -64,14 +64,15 @@ fun VideoPlayerOverlay(
             .fillMaxSize()
             .background(Color.Black)
     ) {
-        // Video View
+        // Video View with Built-in Media3 Playback Controls
         AndroidView(
             factory = { context ->
                 PlayerView(context).apply {
                     player = mediaPlayerManager.exoPlayer
                     useController = true
-                    setShowNextButton(false)
-                    setShowPreviousButton(false)
+                    setShowNextButton(true)
+                    setShowPreviousButton(true)
+                    setControllerShowTimeoutMs(3500)
                 }
             },
             update = { view ->
@@ -88,8 +89,8 @@ fun VideoPlayerOverlay(
                     detectTapGestures(
                         onDoubleTap = { offset ->
                             val isRight = offset.x >= (size.width / 2f)
-                            val currentPos = mediaPlayerManager.exoPlayer.currentPosition
-                            val duration = mediaPlayerManager.exoPlayer.duration.coerceAtLeast(0L)
+                            val currentPos = mediaPlayerManager.exoPlayer?.currentPosition ?: 0L
+                            val duration = mediaPlayerManager.exoPlayer?.duration?.coerceAtLeast(0L) ?: 0L
 
                             if (isRight) {
                                 val newPos = (currentPos + 5000L).coerceAtMost(duration)

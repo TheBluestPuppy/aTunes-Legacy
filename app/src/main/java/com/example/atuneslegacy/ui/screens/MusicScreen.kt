@@ -23,11 +23,15 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Album
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.PlayCircle
 import androidx.compose.material.icons.filled.PlaylistPlay
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -39,9 +43,13 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -51,9 +59,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.example.atuneslegacy.data.local.entity.AlbumEntity
+import com.example.atuneslegacy.data.local.entity.ArtistEntity
 import com.example.atuneslegacy.data.local.entity.PlaylistEntity
 import com.example.atuneslegacy.data.local.entity.SongEntity
 import com.example.atuneslegacy.ui.components.AlbumGridCard
+import com.example.atuneslegacy.ui.components.ArtistMetadataDialog
 import com.example.atuneslegacy.ui.components.ITunesSegmentedControl
 import com.example.atuneslegacy.ui.components.SongTableHeader
 import com.example.atuneslegacy.ui.components.SongTableRow
@@ -72,6 +82,7 @@ fun MusicScreen(
     val songs by viewModel.musicSongs.collectAsState()
     val allSongsList by viewModel.allSongs.collectAsState()
     val albums by viewModel.allAlbums.collectAsState()
+    val allArtists by viewModel.allArtists.collectAsState()
     val playlists by viewModel.allPlaylists.collectAsState()
     val musicVideos by viewModel.musicVideos.collectAsState()
     val selectedAlbum by viewModel.selectedAlbum.collectAsState()
@@ -108,6 +119,8 @@ fun MusicScreen(
                 )
                 MusicSubTab.ARTISTS -> ArtistsSubScreen(
                     songs = songs,
+                    albums = albums,
+                    allArtists = allArtists,
                     selectedArtist = selectedArtist,
                     onSelectArtist = { viewModel.selectArtist(it) },
                     viewModel = viewModel
@@ -204,66 +217,74 @@ private fun AlbumsSubScreen(
                 border = androidx.compose.foundation.BorderStroke(0.5.dp, themeColors.surfaceBorder),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Row(
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(12.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                        .padding(12.dp)
                 ) {
-                    OutlinedButton(onClick = { onSelectAlbum(null) }) {
+                    // "← All Albums" button ABOVE the album info
+                    OutlinedButton(
+                        onClick = { onSelectAlbum(null) },
+                        modifier = Modifier.padding(bottom = 10.dp)
+                    ) {
                         Text("← All Albums", fontSize = 11.sp, color = themeColors.textPrimary)
                     }
-                    Spacer(modifier = Modifier.width(14.dp))
 
-                    Box(
-                        modifier = Modifier
-                            .size(64.dp)
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(themeColors.background)
-                            .border(1.dp, themeColors.surfaceBorder, RoundedCornerShape(6.dp)),
-                        contentAlignment = Alignment.Center
+                    // Album info taking up the full horizontal space
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        if (selectedAlbum.albumCoverUri.isNotBlank()) {
-                            AsyncImage(
-                                model = selectedAlbum.albumCoverUri,
-                                contentDescription = selectedAlbum.title,
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier.fillMaxSize()
+                        Box(
+                            modifier = Modifier
+                                .size(72.dp)
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(themeColors.background)
+                                .border(1.dp, themeColors.surfaceBorder, RoundedCornerShape(6.dp)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (selectedAlbum.albumCoverUri.isNotBlank()) {
+                                AsyncImage(
+                                    model = selectedAlbum.albumCoverUri,
+                                    contentDescription = selectedAlbum.title,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Default.Album,
+                                    contentDescription = null,
+                                    tint = themeColors.primaryAccent,
+                                    modifier = Modifier.size(36.dp)
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.width(14.dp))
+
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .combinedClickable(onClick = {}, onLongClick = { viewModel.setEditingAlbum(selectedAlbum) })
+                        ) {
+                            Text(
+                                text = selectedAlbum.title,
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = themeColors.textPrimary
                             )
-                        } else {
-                            Icon(
-                                imageVector = Icons.Default.Album,
-                                contentDescription = null,
-                                tint = themeColors.primaryAccent,
-                                modifier = Modifier.size(36.dp)
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = "${selectedAlbum.albumArtist} • ${selectedAlbum.releaseYear} • ${selectedAlbum.genre}",
+                                fontSize = 12.sp,
+                                color = themeColors.textSecondary
+                            )
+                            Text(
+                                text = "${albumSongs.size} Songs, $albumTime",
+                                fontSize = 11.sp,
+                                color = themeColors.textSecondary
                             )
                         }
-                    }
-
-                    Spacer(modifier = Modifier.width(12.dp))
-
-                    Column(
-                        modifier = Modifier
-                            .weight(1f)
-                            .combinedClickable(onClick = {}, onLongClick = { viewModel.setEditingAlbum(selectedAlbum) })
-                    ) {
-                        Text(
-                            text = selectedAlbum.title,
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = themeColors.textPrimary
-                        )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = "${selectedAlbum.albumArtist} • ${selectedAlbum.releaseYear} • ${selectedAlbum.genre}",
-                            fontSize = 12.sp,
-                            color = themeColors.textSecondary
-                        )
-                        Text(
-                            text = "${albumSongs.size} Songs, $albumTime",
-                            fontSize = 11.sp,
-                            color = themeColors.textSecondary
-                        )
                     }
                 }
             }
@@ -283,17 +304,28 @@ private fun AlbumsSubScreen(
     } else if (albums.isEmpty()) {
         EmptyMediaNotice("No Albums Found", "No album records present in library.")
     } else {
-        LazyVerticalGrid(
-            columns = GridCells.Adaptive(minSize = 140.dp),
-            contentPadding = PaddingValues(12.dp),
-            modifier = Modifier.fillMaxSize()
-        ) {
-            items(albums) { album ->
-                AlbumGridCard(
-                    album = album,
-                    onClick = { onSelectAlbum(album) },
-                    onLongClick = { viewModel.setEditingAlbum(album) }
+        Column(modifier = Modifier.fillMaxSize().padding(if (themeColors.isAppleMusic) 16.dp else 0.dp)) {
+            if (themeColors.isAppleMusic) {
+                Text(
+                    text = "Albums",
+                    fontSize = 28.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = themeColors.textPrimary,
+                    modifier = Modifier.padding(bottom = 8.dp)
                 )
+            }
+            LazyVerticalGrid(
+                columns = GridCells.Adaptive(minSize = 140.dp),
+                contentPadding = PaddingValues(12.dp),
+                modifier = Modifier.fillMaxSize()
+            ) {
+                items(albums) { album ->
+                    AlbumGridCard(
+                        album = album,
+                        onClick = { onSelectAlbum(album) },
+                        onLongClick = { viewModel.setEditingAlbum(album) }
+                    )
+                }
             }
         }
     }
@@ -302,74 +334,327 @@ private fun AlbumsSubScreen(
 @Composable
 private fun ArtistsSubScreen(
     songs: List<SongEntity>,
+    albums: List<AlbumEntity>,
+    allArtists: List<ArtistEntity>,
     selectedArtist: String?,
     onSelectArtist: (String?) -> Unit,
     viewModel: MainViewModel
 ) {
     val themeColors = LocalThemeColors.current
-    val artists = songs.map { it.artist }.distinct().sorted()
+    val artists = songs.map { it.artist }.filter { it.isNotBlank() && it != "Unknown Artist" }.distinct().sorted()
+    val editingArtist by viewModel.editingArtist.collectAsState()
 
-    Row(modifier = Modifier.fillMaxSize()) {
-        // Left Artist Sidebar
-        LazyColumn(
-            modifier = Modifier
-                .width(160.dp)
-                .fillMaxSize()
-                .background(themeColors.surface)
-                .border(width = 0.5.dp, color = themeColors.surfaceBorder)
-        ) {
-            item {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { onSelectArtist(null) }
-                        .background(if (selectedArtist == null) themeColors.primaryAccent else Color.Transparent)
-                        .padding(10.dp)
-                ) {
-                    Text(
-                        text = "All Artists (${artists.size})",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = if (selectedArtist == null) Color.White else themeColors.textPrimary
-                    )
-                }
-                HorizontalDivider(color = themeColors.surfaceBorder)
+    if (editingArtist != null) {
+        val currentArt = allArtists.firstOrNull { it.name.equals(editingArtist, ignoreCase = true) }?.customArtworkUri ?: ""
+        ArtistMetadataDialog(
+            artistName = editingArtist!!,
+            currentArtworkUri = currentArt,
+            onDismiss = { viewModel.setEditingArtist(null) },
+            onSave = { newName, artworkUri ->
+                viewModel.updateArtistMetadata(editingArtist!!, newName, artworkUri)
             }
-            items(artists) { artist ->
-                val isSelected = artist.equals(selectedArtist, ignoreCase = true)
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { onSelectArtist(artist) }
-                        .background(if (isSelected) themeColors.primaryAccent else Color.Transparent)
-                        .padding(10.dp)
+        )
+    }
+
+    var selectedArtistAlbum by remember(selectedArtist) { mutableStateOf<AlbumEntity?>(null) }
+
+    if (selectedArtist != null) {
+        if (selectedArtistAlbum != null) {
+            val album = selectedArtistAlbum!!
+            val albumSongs = songs.filter { it.albumTitle.equals(album.title, ignoreCase = true) }
+            val albumTime = formatDuration(albumSongs.sumOf { it.duration })
+
+            Column(modifier = Modifier.fillMaxSize()) {
+                Surface(
+                    color = themeColors.surface,
+                    border = androidx.compose.foundation.BorderStroke(0.5.dp, themeColors.surfaceBorder),
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text(
-                        text = artist,
-                        fontSize = 12.sp,
-                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                        color = if (isSelected) Color.White else themeColors.textPrimary,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = { selectedArtistAlbum = null },
+                            modifier = Modifier.padding(bottom = 10.dp)
+                        ) {
+                            Text("← $selectedArtist Albums", fontSize = 11.sp, color = themeColors.textPrimary)
+                        }
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(72.dp)
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(themeColors.background)
+                                    .border(1.dp, themeColors.surfaceBorder, RoundedCornerShape(6.dp)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                if (album.albumCoverUri.isNotBlank()) {
+                                    AsyncImage(
+                                        model = album.albumCoverUri,
+                                        contentDescription = album.title,
+                                        contentScale = ContentScale.Crop,
+                                        modifier = Modifier.fillMaxSize()
+                                    )
+                                } else {
+                                    Icon(
+                                        imageVector = Icons.Default.Album,
+                                        contentDescription = null,
+                                        tint = themeColors.primaryAccent,
+                                        modifier = Modifier.size(36.dp)
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.width(14.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = album.title,
+                                    fontSize = 18.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = themeColors.textPrimary
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = "${album.albumArtist} • ${album.releaseYear}",
+                                    fontSize = 12.sp,
+                                    color = themeColors.textSecondary
+                                )
+                                Text(
+                                    text = "${albumSongs.size} Songs, $albumTime",
+                                    fontSize = 11.sp,
+                                    color = themeColors.textSecondary
+                                )
+                            }
+                        }
+                    }
                 }
-                HorizontalDivider(color = themeColors.surfaceBorder)
+                SongTableHeader()
+                LazyColumn(modifier = Modifier.fillMaxSize()) {
+                    itemsIndexed(albumSongs) { index, song ->
+                        SongTableRow(
+                            song = song,
+                            index = index,
+                            onClick = { viewModel.playSong(song, albumSongs) },
+                            onLongClick = { viewModel.setEditingSong(song) }
+                        )
+                    }
+                }
             }
+            return
         }
 
-        // Right Content Column
-        val filteredSongs = if (selectedArtist == null) songs else songs.filter { it.artist.equals(selectedArtist, ignoreCase = true) }
-        Column(modifier = Modifier.weight(1f).fillMaxSize()) {
-            SongTableHeader()
-            LazyColumn(modifier = Modifier.fillMaxSize()) {
-                itemsIndexed(filteredSongs) { index, song ->
-                    SongTableRow(
-                        song = song,
-                        index = index,
-                        onClick = { viewModel.playSong(song, filteredSongs) },
-                        onLongClick = { viewModel.setEditingSong(song) }
+        // Artist Albums List
+        val artistAlbums = albums.filter { alb ->
+            alb.albumArtist.equals(selectedArtist, ignoreCase = true) ||
+                    songs.any { s -> s.artist.equals(selectedArtist, ignoreCase = true) && s.albumTitle.equals(alb.title, ignoreCase = true) }
+        }.ifEmpty {
+            songs.filter { it.artist.equals(selectedArtist, ignoreCase = true) }
+                .map { it.albumTitle }
+                .distinct()
+                .map { title ->
+                    val firstSong = songs.firstOrNull { it.albumTitle == title }
+                    AlbumEntity(
+                        title = title,
+                        albumArtist = selectedArtist,
+                        genre = firstSong?.genre ?: "Unspecified",
+                        releaseYear = firstSong?.year ?: 2024,
+                        albumCoverUri = firstSong?.artworkUri ?: ""
                     )
                 }
+        }
+
+        Column(modifier = Modifier.fillMaxSize()) {
+            Surface(
+                color = themeColors.surface,
+                border = androidx.compose.foundation.BorderStroke(0.5.dp, themeColors.surfaceBorder),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    OutlinedButton(onClick = { onSelectArtist(null) }) {
+                        Text("← All Artists", fontSize = 11.sp, color = themeColors.textPrimary)
+                    }
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Text(text = selectedArtist, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = themeColors.textPrimary)
+                }
+            }
+
+            if (artistAlbums.isEmpty()) {
+                EmptyMediaNotice("No Albums Found", "No albums recorded for $selectedArtist.")
+            } else {
+                LazyColumn(modifier = Modifier.fillMaxSize().background(themeColors.surface)) {
+                    items(artistAlbums) { album ->
+                        val count = songs.count { it.albumTitle.equals(album.title, ignoreCase = true) }
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { selectedArtistAlbum = album }
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(52.dp)
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(themeColors.background)
+                                        .border(1.dp, themeColors.surfaceBorder, RoundedCornerShape(6.dp)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    if (album.albumCoverUri.isNotBlank()) {
+                                        AsyncImage(model = album.albumCoverUri, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                                    } else {
+                                        Icon(imageVector = Icons.Default.Album, contentDescription = null, tint = themeColors.primaryAccent, modifier = Modifier.size(26.dp))
+                                    }
+                                }
+                                Spacer(modifier = Modifier.width(14.dp))
+                                Column {
+                                    Text(text = album.title, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = themeColors.textPrimary)
+                                    Text(text = "${album.releaseYear} • $count Songs", fontSize = 12.sp, color = themeColors.textSecondary)
+                                }
+                            }
+                            Icon(imageVector = Icons.Default.ChevronRight, contentDescription = null, tint = Color.Gray, modifier = Modifier.size(20.dp))
+                        }
+                        HorizontalDivider(color = themeColors.surfaceBorder, thickness = 0.5.dp, modifier = Modifier.padding(start = 82.dp))
+                    }
+                }
+            }
+        }
+        return
+    }
+
+    if (themeColors.isAppleMusic) {
+        if (artists.isEmpty()) {
+            EmptyMediaNotice("No Artists Found", "Add music to populate your library.")
+        } else {
+            Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+                Text(
+                    text = "Artists",
+                    fontSize = 28.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = themeColors.textPrimary,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+                LazyVerticalGrid(
+                    columns = GridCells.Adaptive(minSize = 100.dp),
+                    contentPadding = PaddingValues(8.dp),
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    items(artists) { artist ->
+                        val artistEntity = allArtists.firstOrNull { it.name.equals(artist, ignoreCase = true) }
+                        val artworkUri = artistEntity?.customArtworkUri?.takeIf { it.isNotBlank() } ?: run {
+                            val artAlbums = albums.filter { alb ->
+                                alb.albumArtist.equals(artist, ignoreCase = true) ||
+                                        songs.any { s -> s.artist.equals(artist, ignoreCase = true) && s.albumTitle.equals(alb.title, ignoreCase = true) }
+                            }.sortedBy { it.title }
+                            artAlbums.firstOrNull { it.albumCoverUri.isNotBlank() }?.albumCoverUri ?: songs.firstOrNull { it.artist.equals(artist, ignoreCase = true) && it.artworkUri.isNotBlank() }?.artworkUri ?: ""
+                        }
+
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier
+                                .padding(8.dp)
+                                .combinedClickable(
+                                    onClick = { onSelectArtist(artist) },
+                                    onLongClick = { viewModel.setEditingArtist(artist) }
+                                )
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(92.dp)
+                                    .clip(CircleShape)
+                                    .background(themeColors.surface)
+                                    .border(1.dp, themeColors.surfaceBorder, CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                if (artworkUri.isNotBlank()) {
+                                    AsyncImage(model = artworkUri, contentDescription = artist, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                                } else {
+                                    Icon(imageVector = Icons.Default.Person, contentDescription = null, tint = themeColors.primaryAccent, modifier = Modifier.size(38.dp))
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                text = artist,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = themeColors.textPrimary,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        return
+    }
+
+    // Classic iOS 6 Full-Width List for Legacy Themes
+    if (artists.isEmpty()) {
+        EmptyMediaNotice("No Artists Found", "Add music to populate your library.")
+    } else {
+        LazyColumn(modifier = Modifier.fillMaxSize().background(themeColors.surface)) {
+            items(artists) { artist ->
+                val artistEntity = allArtists.firstOrNull { it.name.equals(artist, ignoreCase = true) }
+                val artworkUri = artistEntity?.customArtworkUri?.takeIf { it.isNotBlank() } ?: run {
+                    val artAlbums = albums.filter { alb ->
+                        alb.albumArtist.equals(artist, ignoreCase = true) ||
+                                songs.any { s -> s.artist.equals(artist, ignoreCase = true) && s.albumTitle.equals(alb.title, ignoreCase = true) }
+                    }.sortedBy { it.title }
+                    artAlbums.firstOrNull { it.albumCoverUri.isNotBlank() }?.albumCoverUri ?: songs.firstOrNull { it.artist.equals(artist, ignoreCase = true) && it.artworkUri.isNotBlank() }?.artworkUri ?: ""
+                }
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .combinedClickable(
+                            onClick = { onSelectArtist(artist) },
+                            onLongClick = { viewModel.setEditingArtist(artist) }
+                        )
+                        .padding(horizontal = 16.dp, vertical = 10.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(44.dp)
+                                .clip(CircleShape)
+                                .background(themeColors.background)
+                                .border(0.5.dp, themeColors.surfaceBorder, CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (artworkUri.isNotBlank()) {
+                                AsyncImage(model = artworkUri, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                            } else {
+                                Icon(imageVector = Icons.Default.Person, contentDescription = null, tint = themeColors.primaryAccent, modifier = Modifier.size(22.dp))
+                            }
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text(
+                            text = artist,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = themeColors.textPrimary
+                        )
+                    }
+                    Icon(
+                        imageVector = Icons.Default.ChevronRight,
+                        contentDescription = null,
+                        tint = Color.Gray,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+                HorizontalDivider(color = themeColors.surfaceBorder, thickness = 0.5.dp, modifier = Modifier.padding(start = 72.dp))
             }
         }
     }
@@ -385,65 +670,67 @@ private fun GenresSubScreen(
     val themeColors = LocalThemeColors.current
     val genres = songs.map { it.genre }.filter { it.isNotBlank() }.distinct().sorted()
 
-    Row(modifier = Modifier.fillMaxSize()) {
-        LazyColumn(
-            modifier = Modifier
-                .width(160.dp)
-                .fillMaxSize()
-                .background(themeColors.surface)
-                .border(width = 0.5.dp, color = themeColors.surfaceBorder)
-        ) {
-            item {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { onSelectGenre(null) }
-                        .background(if (selectedGenre == null) themeColors.primaryAccent else Color.Transparent)
-                        .padding(10.dp)
+    if (selectedGenre != null) {
+        val genreSongs = songs.filter { it.genre.equals(selectedGenre, ignoreCase = true) }
+        Column(modifier = Modifier.fillMaxSize()) {
+            Surface(
+                color = themeColors.surface,
+                border = androidx.compose.foundation.BorderStroke(0.5.dp, themeColors.surfaceBorder),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = "All Genres (${genres.size})",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = if (selectedGenre == null) Color.White else themeColors.textPrimary
-                    )
+                    OutlinedButton(onClick = { onSelectGenre(null) }) {
+                        Text("← All Genres", fontSize = 11.sp, color = themeColors.textPrimary)
+                    }
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Text(text = selectedGenre, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = themeColors.textPrimary)
                 }
-                HorizontalDivider(color = themeColors.surfaceBorder)
             }
-            items(genres) { genre ->
-                val isSelected = genre.equals(selectedGenre, ignoreCase = true)
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { onSelectGenre(genre) }
-                        .background(if (isSelected) themeColors.primaryAccent else Color.Transparent)
-                        .padding(10.dp)
-                ) {
-                    Text(
-                        text = genre,
-                        fontSize = 12.sp,
-                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                        color = if (isSelected) Color.White else themeColors.textPrimary,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-                HorizontalDivider(color = themeColors.surfaceBorder)
-            }
-        }
-
-        val filteredSongs = if (selectedGenre == null) songs else songs.filter { it.genre.equals(selectedGenre, ignoreCase = true) }
-        Column(modifier = Modifier.weight(1f).fillMaxSize()) {
             SongTableHeader()
             LazyColumn(modifier = Modifier.fillMaxSize()) {
-                itemsIndexed(filteredSongs) { index, song ->
+                itemsIndexed(genreSongs) { index, song ->
                     SongTableRow(
                         song = song,
                         index = index,
-                        onClick = { viewModel.playSong(song, filteredSongs) },
+                        onClick = { viewModel.playSong(song, genreSongs) },
                         onLongClick = { viewModel.setEditingSong(song) }
                     )
                 }
+            }
+        }
+        return
+    }
+
+    if (genres.isEmpty()) {
+        EmptyMediaNotice("No Genres Found", "Add music to populate your library.")
+    } else {
+        LazyColumn(modifier = Modifier.fillMaxSize().background(themeColors.surface)) {
+            items(genres) { genre ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onSelectGenre(genre) }
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = genre,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = themeColors.textPrimary
+                    )
+                    Icon(
+                        imageVector = Icons.Default.ChevronRight,
+                        contentDescription = null,
+                        tint = Color.Gray,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+                HorizontalDivider(color = themeColors.surfaceBorder, thickness = 0.5.dp, modifier = Modifier.padding(start = 16.dp))
             }
         }
     }
@@ -460,101 +747,189 @@ private fun PlaylistsSubScreen(
 ) {
     val themeColors = LocalThemeColors.current
 
-    Row(modifier = Modifier.fillMaxSize()) {
-        // Left Playlists Sidebar
-        Column(
-            modifier = Modifier
-                .width(180.dp)
-                .fillMaxSize()
-                .background(themeColors.surface)
-                .border(width = 0.5.dp, color = themeColors.surfaceBorder)
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(8.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+    if (selectedPlaylist != null) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            Surface(
+                color = themeColors.surface,
+                border = androidx.compose.foundation.BorderStroke(0.5.dp, themeColors.surfaceBorder),
+                modifier = Modifier.fillMaxWidth()
             ) {
-                Text("PLAYLISTS", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = themeColors.textSecondary)
-                Button(
-                    onClick = onCreatePlaylistClick,
-                    colors = ButtonDefaults.buttonColors(containerColor = themeColors.primaryAccent),
-                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
-                    modifier = Modifier.height(26.dp)
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(Icons.Default.Add, contentDescription = "New", modifier = Modifier.size(12.dp))
-                    Spacer(modifier = Modifier.width(2.dp))
-                    Text("New", fontSize = 10.sp)
+                    OutlinedButton(onClick = { onSelectPlaylist(null) }) {
+                        Text("← All Playlists", fontSize = 11.sp, color = themeColors.textPrimary)
+                    }
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Column {
+                        Text(text = selectedPlaylist.title, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = themeColors.textPrimary)
+                        Text(text = "Custom Playlist • ${allSongs.size} Songs", fontSize = 12.sp, color = themeColors.textSecondary)
+                    }
                 }
             }
-            HorizontalDivider(color = themeColors.surfaceBorder)
+            SongTableHeader()
             LazyColumn(modifier = Modifier.fillMaxSize()) {
-                items(playlists) { playlist ->
-                    val isSelected = playlist == selectedPlaylist
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onSelectPlaylist(playlist) }
-                            .background(if (isSelected) themeColors.primaryAccent else Color.Transparent)
-                            .padding(horizontal = 10.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.PlaylistPlay,
-                            contentDescription = null,
-                            tint = if (isSelected) Color.White else themeColors.textPrimary,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = playlist.title,
-                            fontSize = 12.sp,
-                            color = if (isSelected) Color.White else themeColors.textPrimary,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                    HorizontalDivider(color = themeColors.surfaceBorder)
+                itemsIndexed(allSongs) { index, song ->
+                    SongTableRow(
+                        song = song,
+                        index = index,
+                        onClick = { viewModel.playSong(song, allSongs) },
+                        onLongClick = { viewModel.setEditingSong(song) }
+                    )
                 }
             }
         }
+        return
+    }
 
-        // Right Playlist Content
-        Column(modifier = Modifier.weight(1f).fillMaxSize()) {
-            if (selectedPlaylist != null) {
-                Surface(
-                    color = themeColors.surface,
-                    border = androidx.compose.foundation.BorderStroke(0.5.dp, themeColors.surfaceBorder),
-                    modifier = Modifier.fillMaxWidth()
+    if (themeColors.isAppleMusic) {
+        Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Playlists",
+                    fontSize = 28.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = themeColors.textPrimary
+                )
+                Button(
+                    onClick = onCreatePlaylistClick,
+                    colors = ButtonDefaults.buttonColors(containerColor = themeColors.primaryAccent),
+                    shape = RoundedCornerShape(16.dp)
                 ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column {
-                            Text(text = selectedPlaylist.title, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = themeColors.textPrimary)
-                            Text(text = "Custom Playlist • ${allSongs.size} Songs", fontSize = 11.sp, color = themeColors.textSecondary)
+                    Icon(Icons.Default.Add, contentDescription = "New", modifier = Modifier.size(14.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("New Playlist...", fontSize = 12.sp)
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            if (playlists.isEmpty()) {
+                EmptyMediaNotice("No Playlists", "Create your first playlist using the button above.")
+            } else {
+                LazyVerticalGrid(
+                    columns = GridCells.Adaptive(minSize = 150.dp),
+                    contentPadding = PaddingValues(8.dp),
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    items(playlists) { playlist ->
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = themeColors.surface,
+                            border = androidx.compose.foundation.BorderStroke(0.5.dp, themeColors.surfaceBorder),
+                            shadowElevation = 2.dp,
+                            modifier = Modifier
+                                .padding(6.dp)
+                                .fillMaxWidth()
+                                .clickable { onSelectPlaylist(playlist) }
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .aspectRatio(1f)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(
+                                            brush = Brush.linearGradient(
+                                                colors = listOf(themeColors.primaryAccent, Color(0xFF8B5CF6))
+                                            )
+                                        ),
+                                    contentAlignment = Alignment.BottomEnd
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .padding(8.dp)
+                                            .size(32.dp)
+                                            .background(Color.Black.copy(alpha = 0.6f), CircleShape),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(imageVector = Icons.Default.PlayCircle, contentDescription = "Play", tint = Color.White, modifier = Modifier.size(20.dp))
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = playlist.title,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = themeColors.textPrimary,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Text(
+                                    text = "Custom Playlist",
+                                    fontSize = 11.sp,
+                                    color = themeColors.textSecondary,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
                         }
                     }
                 }
-                SongTableHeader()
-                LazyColumn(modifier = Modifier.fillMaxSize()) {
-                    itemsIndexed(allSongs) { index, song ->
-                        SongTableRow(
-                            song = song,
-                            index = index,
-                            onClick = { viewModel.playSong(song, allSongs) },
-                            onLongClick = { viewModel.setEditingSong(song) }
-                        )
-                    }
-                }
-            } else {
-                EmptyMediaNotice("Select a Playlist", "Choose or create a playlist from the left sidebar.")
             }
+        }
+        return
+    }
+
+    // Classic iOS 6 Full-Width List for Legacy Themes
+    LazyColumn(modifier = Modifier.fillMaxSize().background(themeColors.surface)) {
+        item {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onCreatePlaylistClick() }
+                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(Icons.Default.Add, contentDescription = null, tint = themeColors.primaryAccent, modifier = Modifier.size(20.dp))
+                Spacer(modifier = Modifier.width(12.dp))
+                Text(
+                    text = "New Playlist...",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = themeColors.primaryAccent
+                )
+            }
+            HorizontalDivider(color = themeColors.surfaceBorder, thickness = 0.5.dp)
+        }
+
+        items(playlists) { playlist ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onSelectPlaylist(playlist) }
+                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.PlaylistPlay,
+                        contentDescription = null,
+                        tint = themeColors.primaryAccent,
+                        modifier = Modifier.size(22.dp)
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(
+                        text = playlist.title,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = themeColors.textPrimary
+                    )
+                }
+                Icon(
+                    imageVector = Icons.Default.ChevronRight,
+                    contentDescription = null,
+                    tint = Color.Gray,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+            HorizontalDivider(color = themeColors.surfaceBorder, thickness = 0.5.dp, modifier = Modifier.padding(start = 50.dp))
         }
     }
 }

@@ -145,7 +145,6 @@ object MediaImportHelper {
             val hasVideoStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_HAS_VIDEO)
             isVideo = hasVideoStr != null && hasVideoStr.equals("yes", ignoreCase = true)
 
-            // Extract embedded picture if available
             val picture = retriever.embeddedPicture
             if (picture != null && picture.isNotEmpty()) {
                 val imageFile = File(context.cacheDir, "cover_${System.currentTimeMillis()}.jpg")
@@ -192,7 +191,7 @@ object MediaImportHelper {
         )
     }
 
-    // Process imported URI into SongEntity
+    // Process imported URI into SongEntity with "Unspecified" / "Unknown Artist" fallback
     fun createSongEntity(context: Context, uri: Uri): SongEntity {
         takePersistablePermission(context, uri)
         val extracted = extractMetadata(context, uri)
@@ -204,13 +203,17 @@ object MediaImportHelper {
             artwork = extractRandomVideoThumbnail(context, uri)
         }
 
+        val artistName = extracted.artistOrCreator.ifBlank { "Unknown Artist" }
+        val albumTitle = extracted.albumOrShowOrSeries.ifBlank { "Unspecified" }
+        val genreName = extracted.genre.ifBlank { "Unspecified" }
+
         return SongEntity(
             title = title,
-            artist = extracted.artistOrCreator.ifBlank { "Unknown Artist" },
-            albumArtist = extracted.artistOrCreator.ifBlank { "Unknown Artist" },
-            albumTitle = extracted.albumOrShowOrSeries.ifBlank { "Unknown Album" },
+            artist = artistName,
+            albumArtist = artistName,
+            albumTitle = albumTitle,
             composer = "",
-            genre = extracted.genre.ifBlank { "Unspecified" },
+            genre = genreName,
             year = if (extracted.releaseYear > 0) extracted.releaseYear else 2024,
             trackNumber = extracted.trackNumber,
             filePath = uri.toString(),
@@ -221,7 +224,6 @@ object MediaImportHelper {
         )
     }
 
-    // Process imported URI into TvEpisodeEntity
     fun createTvEpisodeEntity(context: Context, uri: Uri): TvEpisodeEntity {
         takePersistablePermission(context, uri)
         val fileName = getFileName(context, uri)
@@ -239,7 +241,6 @@ object MediaImportHelper {
         )
     }
 
-    // Process imported URI into MovieEntity
     fun createMovieEntity(context: Context, uri: Uri): MovieEntity {
         takePersistablePermission(context, uri)
         val fileName = getFileName(context, uri)
@@ -257,7 +258,6 @@ object MediaImportHelper {
         )
     }
 
-    // Process imported URI into PodcastEpisodeEntity
     fun createPodcastEpisodeEntity(context: Context, uri: Uri): PodcastEpisodeEntity {
         takePersistablePermission(context, uri)
         val fileName = getFileName(context, uri)
@@ -273,7 +273,6 @@ object MediaImportHelper {
         )
     }
 
-    // Process imported URI into AudiobookEntity
     fun createAudiobookEntity(context: Context, uri: Uri): AudiobookEntity {
         takePersistablePermission(context, uri)
         val fileName = getFileName(context, uri)
