@@ -31,9 +31,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
+import com.example.atuneslegacy.R
 import com.example.atuneslegacy.data.local.entity.TvEpisodeEntity
 import com.example.atuneslegacy.data.local.entity.TvShowEntity
 import com.example.atuneslegacy.ui.components.TvBulkEditDialog
@@ -50,31 +53,40 @@ fun TvShowsScreen(
     val selectedShow by viewModel.selectedTvShow.collectAsState()
     val showEpisodes by viewModel.tvEpisodesForSelectedShow.collectAsState()
 
-    Column(modifier = modifier.fillMaxSize().background(Color(0xFFF2F4F7))) {
-        if (selectedShow != null) {
-            // TV SHOW DETAIL PAGE (Episodes grouped by Season)
-            TvShowDetailPage(
-                show = selectedShow!!,
-                episodes = showEpisodes,
-                onBackClick = { viewModel.selectTvShow(null) },
-                viewModel = viewModel
-            )
-        } else {
-            // MAIN TV SHOWS LIST / GRID
-            if (shows.isEmpty()) {
-                EmptyMediaNotice("No TV Shows Available", "Import TV shows into your iTunes library.")
+    Box(modifier = modifier.fillMaxSize()) {
+        AsyncImage(
+            model = R.drawable.ios6_background,
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.fillMaxSize()
+        )
+
+        Column(modifier = Modifier.fillMaxSize()) {
+            if (selectedShow != null) {
+                // TV SHOW DETAIL PAGE (Episodes grouped by Season)
+                TvShowDetailPage(
+                    show = selectedShow!!,
+                    episodes = showEpisodes,
+                    onBackClick = { viewModel.selectTvShow(null) },
+                    viewModel = viewModel
+                )
             } else {
-                LazyVerticalGrid(
-                    columns = GridCells.Adaptive(minSize = 280.dp),
-                    contentPadding = PaddingValues(12.dp),
-                    modifier = Modifier.fillMaxSize()
-                ) {
-                    items(shows) { show ->
-                        TvShowCard(
-                            show = show,
-                            onClick = { viewModel.selectTvShow(show) },
-                            onLongClick = { viewModel.setEditingTvShow(show) }
-                        )
+                // MAIN TV SHOWS LIST / GRID
+                if (shows.isEmpty()) {
+                    EmptyMediaNotice("No TV Shows Available", "Import TV shows into your iTunes library.")
+                } else {
+                    LazyVerticalGrid(
+                        columns = GridCells.Adaptive(minSize = 280.dp),
+                        contentPadding = PaddingValues(12.dp),
+                        modifier = Modifier.fillMaxSize()
+                    ) {
+                        items(shows) { show ->
+                            TvShowCard(
+                                show = show,
+                                onClick = { viewModel.selectTvShow(show) },
+                                onLongClick = { viewModel.setEditingTvShow(show) }
+                            )
+                        }
                     }
                 }
             }
@@ -180,8 +192,8 @@ private fun TvShowDetailPage(
             TvBulkEditDialog(
                 selectedCount = selectedIds.size,
                 onDismiss = { viewModel.setShowTvBulkEditDialog(false) },
-                onSave = { seasonStr, titlePrefix ->
-                    viewModel.bulkUpdateTvEpisodesMetadata(seasonStr, titlePrefix)
+                onSave = { showTitle, seasonStr, titlePrefix ->
+                    viewModel.bulkUpdateTvEpisodesMetadata(showTitle, seasonStr, titlePrefix)
                 }
             )
         }
@@ -189,13 +201,11 @@ private fun TvShowDetailPage(
         if (episodes.isEmpty()) {
             EmptyMediaNotice("No Episodes Found", "No episode files added for this TV show yet.")
         } else {
-            // Group episodes by season
             val groupedBySeason = episodes.groupBy { it.seasonNumber }
 
             LazyColumn(modifier = Modifier.fillMaxSize()) {
                 groupedBySeason.forEach { (seasonNum, seasonEpisodes) ->
                     item {
-                        // Season Header Indicator
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()

@@ -4,6 +4,7 @@ import com.example.atuneslegacy.data.local.dao.AudiobookDao
 import com.example.atuneslegacy.data.local.dao.MovieDao
 import com.example.atuneslegacy.data.local.dao.MusicDao
 import com.example.atuneslegacy.data.local.dao.PodcastDao
+import com.example.atuneslegacy.data.local.dao.ShortsDao
 import com.example.atuneslegacy.data.local.dao.TvDao
 import com.example.atuneslegacy.data.local.entity.AlbumEntity
 import com.example.atuneslegacy.data.local.entity.ArtistEntity
@@ -15,6 +16,7 @@ import com.example.atuneslegacy.data.local.entity.PlaylistEntity
 import com.example.atuneslegacy.data.local.entity.PlaylistItemEntity
 import com.example.atuneslegacy.data.local.entity.PodcastEpisodeEntity
 import com.example.atuneslegacy.data.local.entity.PodcastShowEntity
+import com.example.atuneslegacy.data.local.entity.ShortVideoEntity
 import com.example.atuneslegacy.data.local.entity.SongEntity
 import com.example.atuneslegacy.data.local.entity.TvEpisodeEntity
 import com.example.atuneslegacy.data.local.entity.TvShowEntity
@@ -25,7 +27,8 @@ class MediaRepository(
     private val tvDao: TvDao,
     private val movieDao: MovieDao,
     private val podcastDao: PodcastDao,
-    private val audiobookDao: AudiobookDao
+    private val audiobookDao: AudiobookDao,
+    private val shortsDao: ShortsDao
 ) {
     // --- MUSIC & SONGS ---
     fun getAllSongs(): Flow<List<SongEntity>> = musicDao.getAllSongs()
@@ -65,6 +68,7 @@ class MediaRepository(
     // --- PLAYLISTS ---
     fun getAllPlaylists(): Flow<List<PlaylistEntity>> = musicDao.getAllPlaylists()
     suspend fun insertPlaylist(playlist: PlaylistEntity): Long = musicDao.insertPlaylist(playlist)
+    suspend fun updatePlaylist(playlist: PlaylistEntity) = musicDao.updatePlaylist(playlist)
     suspend fun deletePlaylist(playlist: PlaylistEntity) = musicDao.deletePlaylist(playlist)
     fun getPlaylistItems(playlistId: Long): Flow<List<PlaylistItemEntity>> = musicDao.getPlaylistItems(playlistId)
     suspend fun insertPlaylistItem(item: PlaylistItemEntity): Long = musicDao.insertPlaylistItem(item)
@@ -90,6 +94,8 @@ class MediaRepository(
     fun getAllGameShortcuts(): Flow<List<GameShortcutEntity>> = musicDao.getAllGameShortcuts()
     suspend fun insertGameShortcut(shortcut: GameShortcutEntity) = musicDao.insertGameShortcut(shortcut)
     suspend fun deleteGameShortcut(packageName: String) = musicDao.deleteGameShortcut(packageName)
+
+    // --- TV SHOWS & EPISODES ---
     fun getAllTvShows(): Flow<List<TvShowEntity>> = tvDao.getAllTvShows()
     suspend fun getTvShowById(id: Long): TvShowEntity? = tvDao.getTvShowById(id)
     suspend fun getTvShowByTitle(title: String): TvShowEntity? = tvDao.getTvShowByTitle(title)
@@ -156,6 +162,7 @@ class MediaRepository(
     fun getAudiobooksBySeries(seriesTitle: String): Flow<List<AudiobookEntity>> = audiobookDao.getAudiobooksBySeries(seriesTitle)
     suspend fun insertAudiobook(audiobook: AudiobookEntity): Long = audiobookDao.insertAudiobook(audiobook)
     suspend fun updateAudiobook(audiobook: AudiobookEntity) = audiobookDao.updateAudiobook(audiobook)
+    suspend fun updateAudiobookPosition(id: Long, positionMs: Long) = audiobookDao.updateAudiobookPosition(id, positionMs)
     suspend fun deleteAudiobook(audiobook: AudiobookEntity) = audiobookDao.deleteAudiobook(audiobook)
 
     fun getAllBookSeries(): Flow<List<BookSeriesEntity>> = audiobookDao.getAllBookSeries()
@@ -177,6 +184,14 @@ class MediaRepository(
         )
     }
 
+    // --- SHORTS ---
+    fun getAllShorts(): Flow<List<ShortVideoEntity>> = shortsDao.getAllShorts()
+    fun getSavedShorts(): Flow<List<ShortVideoEntity>> = shortsDao.getSavedShorts()
+    suspend fun getShortByUri(uri: String): ShortVideoEntity? = shortsDao.getShortByUri(uri)
+    suspend fun insertShort(short: ShortVideoEntity): Long = shortsDao.insertShort(short)
+    suspend fun updateShort(short: ShortVideoEntity) = shortsDao.updateShort(short)
+    suspend fun deleteShort(short: ShortVideoEntity) = shortsDao.deleteShort(short)
+
     suspend fun clearAllMedia() {
         musicDao.deleteAllSongs()
         musicDao.deleteAllAlbums()
@@ -189,5 +204,6 @@ class MediaRepository(
         podcastDao.deleteAllPodcastEpisodes()
         audiobookDao.deleteAllAudiobooks()
         audiobookDao.deleteAllBookSeries()
+        shortsDao.deleteAllShorts()
     }
 }

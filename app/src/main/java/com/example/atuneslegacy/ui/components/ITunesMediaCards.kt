@@ -70,9 +70,25 @@ fun formatDuration(durationMs: Long): String {
     return String.format("%d:%02d", minutes, seconds)
 }
 
+fun formatAudiobookPosition(positionMs: Long): String {
+    if (positionMs <= 0) return ""
+    val totalSeconds = positionMs / 1000
+    val hours = totalSeconds / 3600
+    val minutes = (totalSeconds % 3600) / 60
+    val seconds = totalSeconds % 60
+    return if (hours > 0) {
+        String.format("%d:%02d:%02d", hours, minutes, seconds)
+    } else {
+        String.format("%d:%02d", minutes, seconds)
+    }
+}
+
 // 1. SONG TABLE HEADER
 @Composable
-fun SongTableHeader(modifier: Modifier = Modifier) {
+fun SongTableHeader(
+    showNumberAndTime: Boolean = true,
+    modifier: Modifier = Modifier
+) {
     val themeColors = com.example.atuneslegacy.ui.theme.LocalThemeColors.current
     if (themeColors.isAppleMusic) return
 
@@ -88,17 +104,21 @@ fun SongTableHeader(modifier: Modifier = Modifier) {
             .padding(horizontal = 6.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(text = "#", modifier = Modifier.width(22.dp), fontWeight = FontWeight.Bold, fontSize = 11.sp, color = Color(0xFF3C404B), maxLines = 1)
-        Box(modifier = Modifier.width(1.dp).height(12.dp).background(Color(0xFFC0C5CE)))
-        Spacer(modifier = Modifier.width(4.dp))
+        if (showNumberAndTime) {
+            Text(text = "#", modifier = Modifier.width(22.dp), fontWeight = FontWeight.Bold, fontSize = 11.sp, color = Color(0xFF3C404B), maxLines = 1)
+            Box(modifier = Modifier.width(1.dp).height(12.dp).background(Color(0xFFC0C5CE)))
+            Spacer(modifier = Modifier.width(4.dp))
+        }
 
         Text(text = "Title", modifier = Modifier.weight(2.2f), fontWeight = FontWeight.Bold, fontSize = 11.sp, color = Color(0xFF3C404B), maxLines = 1)
         Box(modifier = Modifier.width(1.dp).height(12.dp).background(Color(0xFFC0C5CE)))
         Spacer(modifier = Modifier.width(4.dp))
 
-        Text(text = "Time", modifier = Modifier.width(42.dp), fontWeight = FontWeight.Bold, fontSize = 11.sp, color = Color(0xFF3C404B), maxLines = 1)
-        Box(modifier = Modifier.width(1.dp).height(12.dp).background(Color(0xFFC0C5CE)))
-        Spacer(modifier = Modifier.width(4.dp))
+        if (showNumberAndTime) {
+            Text(text = "Time", modifier = Modifier.width(42.dp), fontWeight = FontWeight.Bold, fontSize = 11.sp, color = Color(0xFF3C404B), maxLines = 1)
+            Box(modifier = Modifier.width(1.dp).height(12.dp).background(Color(0xFFC0C5CE)))
+            Spacer(modifier = Modifier.width(4.dp))
+        }
 
         Text(text = "Artist", modifier = Modifier.weight(1.8f), fontWeight = FontWeight.Bold, fontSize = 11.sp, color = Color(0xFF3C404B), maxLines = 1)
         Box(modifier = Modifier.width(1.dp).height(12.dp).background(Color(0xFFC0C5CE)))
@@ -119,6 +139,7 @@ fun SongTableRow(
     index: Int,
     isSelected: Boolean = false,
     showArtwork: Boolean = false,
+    showNumberAndTime: Boolean = true,
     isMultiSelectMode: Boolean = false,
     isChecked: Boolean = false,
     onCheckedChange: (Boolean) -> Unit = {},
@@ -231,18 +252,26 @@ fun SongTableRow(
             .padding(horizontal = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        if (isMultiSelectMode) {
+        if (showNumberAndTime) {
+            if (isMultiSelectMode) {
+                Checkbox(
+                    checked = isChecked,
+                    onCheckedChange = onCheckedChange,
+                    modifier = Modifier.size(24.dp).padding(end = 4.dp)
+                )
+            } else {
+                Text(
+                    text = song.trackNumber.toString(),
+                    modifier = Modifier.width(30.dp),
+                    fontSize = 12.sp,
+                    color = textColorMuted
+                )
+            }
+        } else if (isMultiSelectMode) {
             Checkbox(
                 checked = isChecked,
                 onCheckedChange = onCheckedChange,
                 modifier = Modifier.size(24.dp).padding(end = 4.dp)
-            )
-        } else {
-            Text(
-                text = song.trackNumber.toString(),
-                modifier = Modifier.width(30.dp),
-                fontSize = 12.sp,
-                color = textColorMuted
             )
         }
         Row(
@@ -293,12 +322,14 @@ fun SongTableRow(
                 overflow = TextOverflow.Ellipsis
             )
         }
-        Text(
-            text = formatDuration(song.duration),
-            modifier = Modifier.width(55.dp),
-            fontSize = 12.sp,
-            color = textColorSecondary
-        )
+        if (showNumberAndTime) {
+            Text(
+                text = formatDuration(song.duration),
+                modifier = Modifier.width(55.dp),
+                fontSize = 12.sp,
+                color = textColorSecondary
+            )
+        }
         Text(
             text = song.artist,
             modifier = Modifier.weight(2f),
@@ -317,7 +348,7 @@ fun SongTableRow(
         )
         Text(
             text = song.genre,
-            modifier = Modifier.weight(1.5f),
+            modifier = Modifier.weight(1.4f),
             fontSize = 12.sp,
             color = textColorMuted,
             maxLines = 1,
@@ -654,84 +685,89 @@ fun PodcastShowCard(
     modifier: Modifier = Modifier
 ) {
     Card(
-        shape = RoundedCornerShape(6.dp),
+        shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFA2A7B5)),
         modifier = modifier
             .fillMaxWidth()
             .combinedClickable(onClick = onClick, onLongClick = onLongClick)
     ) {
-        Row(
-            modifier = Modifier.padding(10.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                modifier = Modifier
-                    .width(80.dp)
-                    .height(115.dp)
-                    .clip(RoundedCornerShape(4.dp))
-                    .background(Color(0xFFE2E6EE))
-                    .border(1.dp, Color(0xFFC4C9D4), RoundedCornerShape(4.dp)),
-                contentAlignment = Alignment.Center
+        Column(modifier = Modifier.padding(12.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.Top
             ) {
-                if (show.logoThumbnailUri.isNotBlank()) {
-                    AsyncImage(
-                        model = show.logoThumbnailUri,
-                        contentDescription = show.title,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                } else {
-                    Icon(
-                        imageVector = Icons.Default.Podcasts,
-                        contentDescription = null,
-                        tint = ITunesAccentBlue,
-                        modifier = Modifier.size(36.dp)
-                    )
+                Box(
+                    modifier = Modifier
+                        .size(85.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Color(0xFFE2E6EE))
+                        .border(1.dp, Color(0xFFC0C5CE), RoundedCornerShape(8.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (show.logoThumbnailUri.isNotBlank()) {
+                        AsyncImage(
+                            model = show.logoThumbnailUri,
+                            contentDescription = show.title,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Default.Podcasts,
+                            contentDescription = null,
+                            tint = Color(0xFF9098A8),
+                            modifier = Modifier.size(40.dp)
+                        )
+                    }
                 }
-            }
-            Spacer(modifier = Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = show.title,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF1C1D21)
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = show.creatorHost.ifBlank { "Unknown Host" },
-                    fontSize = 12.sp,
-                    color = Color(0xFF636A78)
-                )
-                if (show.category.isNotBlank()) {
-                    Spacer(modifier = Modifier.height(2.dp))
+                Spacer(modifier = Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "Category: ${show.category}",
-                        fontSize = 11.sp,
-                        color = Color(0xFF687080)
-                    )
-                }
-                if (show.description.isNotBlank()) {
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Text(
-                        text = show.description,
-                        fontSize = 11.sp,
-                        color = Color(0xFF636A78),
+                        text = show.title,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF000000),
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis
                     )
+                    Spacer(modifier = Modifier.height(3.dp))
+                    Text(
+                        text = show.creatorHost.ifBlank { "Quin Halvorson" },
+                        fontSize = 13.sp,
+                        color = Color(0xFF555D6E)
+                    )
+                    Spacer(modifier = Modifier.height(3.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Category: ${show.category.ifBlank { "Video Games" }}",
+                            fontSize = 12.sp,
+                            color = Color(0xFF555D6E)
+                        )
+                        val stars = if (show.starRating > 0) show.starRating else 5
+                        Text(
+                            text = "★".repeat(stars),
+                            fontSize = 12.sp,
+                            color = Color(0xFFE5A000)
+                        )
+                    }
                 }
             }
-            if (show.starRating > 0) {
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "★".repeat(show.starRating),
-                    fontSize = 14.sp,
-                    color = Color(0xFFEAB308),
-                    fontWeight = FontWeight.Bold
-                )
-            }
+
+            val descText = show.description.ifBlank { "We're the podcast that jumps deep into the lore of the Half-Life/Portal universe." }
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = descText,
+                fontSize = 12.sp,
+                color = Color(0xFF505665),
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
         }
     }
 }
@@ -773,6 +809,25 @@ fun AudiobookCard(
                     tint = Color(0xFF606878),
                     modifier = Modifier.size(40.dp)
                 )
+            }
+            if (book.lastPlaybackPositionMs > 0) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
+                        .background(Color.Black.copy(alpha = 0.75f))
+                        .padding(vertical = 2.dp, horizontal = 4.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "Resume: ${formatAudiobookPosition(book.lastPlaybackPositionMs)}",
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
             }
         }
         Spacer(modifier = Modifier.height(4.dp))

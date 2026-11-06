@@ -33,11 +33,13 @@ import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PlayCircle
 import androidx.compose.material.icons.filled.PlaylistPlay
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -861,6 +863,23 @@ private fun PlaylistsSubScreen(
                     modifier = Modifier.fillMaxSize()
                 ) {
                     items(playlists) { playlist ->
+                        var showEditDialog by remember { mutableStateOf(false) }
+
+                        if (showEditDialog) {
+                            EditPlaylistDialog(
+                                playlist = playlist,
+                                onDismiss = { showEditDialog = false },
+                                onRename = { newTitle ->
+                                    viewModel.renamePlaylist(playlist.id, newTitle)
+                                    showEditDialog = false
+                                },
+                                onDelete = {
+                                    viewModel.deletePlaylist(playlist)
+                                    showEditDialog = false
+                                }
+                            )
+                        }
+
                         Surface(
                             shape = RoundedCornerShape(12.dp),
                             color = themeColors.surface,
@@ -869,7 +888,10 @@ private fun PlaylistsSubScreen(
                             modifier = Modifier
                                 .padding(6.dp)
                                 .fillMaxWidth()
-                                .clickable { onSelectPlaylist(playlist) }
+                                .combinedClickable(
+                                    onClick = { onSelectPlaylist(playlist) },
+                                    onLongClick = { showEditDialog = true }
+                                )
                         ) {
                             Column(modifier = Modifier.padding(12.dp)) {
                                 Box(
@@ -942,10 +964,30 @@ private fun PlaylistsSubScreen(
         }
 
         items(playlists) { playlist ->
+            var showEditDialog by remember { mutableStateOf(false) }
+
+            if (showEditDialog) {
+                EditPlaylistDialog(
+                    playlist = playlist,
+                    onDismiss = { showEditDialog = false },
+                    onRename = { newTitle ->
+                        viewModel.renamePlaylist(playlist.id, newTitle)
+                        showEditDialog = false
+                    },
+                    onDelete = {
+                        viewModel.deletePlaylist(playlist)
+                        showEditDialog = false
+                    }
+                )
+            }
+
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable { onSelectPlaylist(playlist) }
+                    .combinedClickable(
+                        onClick = { onSelectPlaylist(playlist) },
+                        onLongClick = { showEditDialog = true }
+                    )
                     .padding(horizontal = 16.dp, vertical = 14.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
@@ -1029,4 +1071,53 @@ fun EmptyMediaNotice(title: String, subtitle: String, modifier: Modifier = Modif
             Text(text = subtitle, fontSize = 12.sp, color = themeColors.textSecondary)
         }
     }
+}
+
+@Composable
+fun EditPlaylistDialog(
+    playlist: PlaylistEntity,
+    onDismiss: () -> Unit,
+    onRename: (String) -> Unit,
+    onDelete: () -> Unit
+) {
+    val themeColors = LocalThemeColors.current
+    var titleInput by remember { mutableStateOf(playlist.title) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Edit Playlist", fontWeight = FontWeight.Bold, color = themeColors.textPrimary) },
+        text = {
+            Column {
+                OutlinedTextField(
+                    value = titleInput,
+                    onValueChange = { titleInput = it },
+                    label = { Text("Playlist Name") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(
+                    onClick = onDelete,
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.Red)
+                ) {
+                    Text("Delete")
+                }
+                Button(
+                    onClick = { onRename(titleInput) },
+                    colors = ButtonDefaults.buttonColors(containerColor = themeColors.primaryAccent)
+                ) {
+                    Text("Save", color = Color.White)
+                }
+            }
+        },
+        dismissButton = {
+            OutlinedButton(onClick = onDismiss) {
+                Text("Cancel", color = themeColors.textSecondary)
+            }
+        },
+        containerColor = themeColors.surface
+    )
 }

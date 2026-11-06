@@ -50,6 +50,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.example.atuneslegacy.data.local.entity.MovieEntity
+import com.example.atuneslegacy.data.local.entity.PodcastEpisodeEntity
 import com.example.atuneslegacy.data.local.entity.SongEntity
 import com.example.atuneslegacy.data.local.entity.TvEpisodeEntity
 import com.example.atuneslegacy.ui.navigation.MainTab
@@ -139,7 +140,7 @@ fun CoverFlowScreen(
                                 title = video.title,
                                 subtitle = video.artist,
                                 artworkUri = video.artworkUri,
-                                isVertical = true,
+                                isVertical = false,
                                 songsOrEpisodes = listOf(video)
                             )
                         }
@@ -179,7 +180,7 @@ fun CoverFlowScreen(
                         title = show.title,
                         subtitle = show.creatorHost,
                         artworkUri = show.logoThumbnailUri,
-                        isVertical = true,
+                        isVertical = false,
                         songsOrEpisodes = podcastEpisodes.filter { it.podcastName.equals(show.title, ignoreCase = true) }
                     )
                 }
@@ -214,9 +215,18 @@ fun CoverFlowScreen(
             val configuration = LocalConfiguration.current
             val screenWidthDp = configuration.screenWidthDp.dp
 
+            val isMusicVideo = currentTab == MainTab.MUSIC && musicSubTab == MusicSubTab.MUSIC_VIDEOS
             val isVertical = items.firstOrNull()?.isVertical == true
-            val cardWidth = if (isVertical) 150.dp else 200.dp
-            val cardHeight = if (isVertical) 220.dp else 200.dp
+            val cardWidth = when {
+                isMusicVideo -> 280.dp
+                isVertical -> 150.dp
+                else -> 200.dp
+            }
+            val cardHeight = when {
+                isMusicVideo -> 160.dp
+                isVertical -> 220.dp
+                else -> 200.dp
+            }
             val sidePadding = ((screenWidthDp - cardWidth) / 2).coerceAtLeast(16.dp)
 
             HorizontalPager(
@@ -346,6 +356,25 @@ fun CoverFlowScreen(
                                                     modifier = Modifier
                                                         .fillMaxWidth()
                                                         .clickable { viewModel.playTvEpisode(entry) }
+                                                        .padding(vertical = 6.dp),
+                                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Text(
+                                                        text = "S${entry.seasonNumber}E${entry.episodeNumber}: ${entry.title}",
+                                                        fontSize = 11.sp,
+                                                        color = Color.White,
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis,
+                                                        modifier = Modifier.weight(1f)
+                                                    )
+                                                }
+                                            }
+                                            is PodcastEpisodeEntity -> {
+                                                Row(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .clickable { viewModel.playPodcastEpisode(entry) }
                                                         .padding(vertical = 6.dp),
                                                     horizontalArrangement = Arrangement.SpaceBetween,
                                                     verticalAlignment = Alignment.CenterVertically

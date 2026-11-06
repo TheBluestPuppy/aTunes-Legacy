@@ -2,12 +2,12 @@ package com.example.atuneslegacy.ui.navigation
 
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Book
-import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Podcasts
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.SmartDisplay
 import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material.icons.filled.Tv
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -16,9 +16,9 @@ enum class MainTab(val title: String, val icon: ImageVector) {
     MUSIC("Music", Icons.Default.MusicNote),
     TV_SHOWS("TV Shows", Icons.Default.Tv),
     MOVIES("Movies", Icons.Default.Movie),
+    SHORTS("Shorts", Icons.Default.SmartDisplay),
     PODCASTS("Podcasts", Icons.Default.Podcasts),
     AUDIOBOOKS("Audiobooks", Icons.Default.Book),
-    PHOTOS("Photos", Icons.Default.Image),
     RECORDINGS("Recordings", Icons.Default.Mic),
     GAMES("Games", Icons.Default.SportsEsports),
     SETTINGS("Settings", Icons.Default.Settings)

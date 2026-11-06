@@ -4,6 +4,7 @@ import androidx.compose.ui.platform.LocalContext
 import com.example.atuneslegacy.util.openMediaExternally
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -23,9 +24,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
+import com.example.atuneslegacy.R
 import com.example.atuneslegacy.ui.components.MovieCard
 import com.example.atuneslegacy.ui.theme.ITunesAccentBlue
 import com.example.atuneslegacy.ui.viewmodel.MainViewModel
@@ -38,37 +42,46 @@ fun MoviesScreen(
     val movies by viewModel.allMovies.collectAsState()
     val context = LocalContext.current
 
-    Column(modifier = modifier.fillMaxSize().background(Color(0xFFF2F4F7))) {
-        // Top Toolbar
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = "Movies (${movies.size})",
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color(0xFF2C3038)
-            )
-        }
+    Box(modifier = modifier.fillMaxSize()) {
+        AsyncImage(
+            model = R.drawable.ios6_background,
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.fillMaxSize()
+        )
 
-        if (movies.isEmpty()) {
-            EmptyMediaNotice("No Movies in Library", "Import movie files to view them here.")
-        } else {
-            LazyColumn(
-                contentPadding = PaddingValues(12.dp),
-                modifier = Modifier.fillMaxSize()
+        Column(modifier = Modifier.fillMaxSize()) {
+            // Top Toolbar
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                items(movies) { movie ->
-                    MovieCard(
-                        movie = movie,
-                        onClick = { viewModel.playMovie(movie) },
-                        onLongClick = { viewModel.setEditingMovie(movie) },
-                        modifier = Modifier.padding(vertical = 4.dp)
-                    )
+                Text(
+                    text = "Movies (${movies.size})",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF2C3038)
+                )
+            }
+
+            if (movies.isEmpty()) {
+                EmptyMediaNotice("No Movies in Library", "Import movie files to view them here.")
+            } else {
+                LazyColumn(
+                    contentPadding = PaddingValues(12.dp),
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    items(movies) { movie ->
+                        MovieCard(
+                            movie = movie,
+                            onClick = { viewModel.playMovie(movie) },
+                            onLongClick = { viewModel.setEditingMovie(movie) },
+                            modifier = Modifier.padding(vertical = 4.dp)
+                        )
+                    }
                 }
             }
         }

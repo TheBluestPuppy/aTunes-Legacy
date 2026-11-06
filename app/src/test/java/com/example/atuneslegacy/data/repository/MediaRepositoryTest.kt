@@ -4,6 +4,7 @@ import com.example.atuneslegacy.data.local.dao.AudiobookDao
 import com.example.atuneslegacy.data.local.dao.MovieDao
 import com.example.atuneslegacy.data.local.dao.MusicDao
 import com.example.atuneslegacy.data.local.dao.PodcastDao
+import com.example.atuneslegacy.data.local.dao.ShortsDao
 import com.example.atuneslegacy.data.local.dao.TvDao
 import com.example.atuneslegacy.data.local.entity.AlbumEntity
 import com.example.atuneslegacy.data.local.entity.ArtistEntity
@@ -15,6 +16,7 @@ import com.example.atuneslegacy.data.local.entity.PlaylistEntity
 import com.example.atuneslegacy.data.local.entity.PlaylistItemEntity
 import com.example.atuneslegacy.data.local.entity.PodcastEpisodeEntity
 import com.example.atuneslegacy.data.local.entity.PodcastShowEntity
+import com.example.atuneslegacy.data.local.entity.ShortVideoEntity
 import com.example.atuneslegacy.data.local.entity.SongEntity
 import com.example.atuneslegacy.data.local.entity.TvEpisodeEntity
 import com.example.atuneslegacy.data.local.entity.TvShowEntity
@@ -34,6 +36,7 @@ class MediaRepositoryTest {
     private lateinit var fakeMovieDao: FakeMovieDao
     private lateinit var fakePodcastDao: FakePodcastDao
     private lateinit var fakeAudiobookDao: FakeAudiobookDao
+    private lateinit var fakeShortsDao: FakeShortsDao
 
     @Before
     fun setUp() {
@@ -42,13 +45,15 @@ class MediaRepositoryTest {
         fakeMovieDao = FakeMovieDao()
         fakePodcastDao = FakePodcastDao()
         fakeAudiobookDao = FakeAudiobookDao()
+        fakeShortsDao = FakeShortsDao()
 
         repository = MediaRepository(
             musicDao = fakeMusicDao,
             tvDao = fakeTvDao,
             movieDao = fakeMovieDao,
             podcastDao = fakePodcastDao,
-            audiobookDao = fakeAudiobookDao
+            audiobookDao = fakeAudiobookDao,
+            shortsDao = fakeShortsDao
         )
     }
 
@@ -170,6 +175,10 @@ class FakeMusicDao : MusicDao {
         notifyChanges()
         return id
     }
+    override suspend fun updatePlaylist(playlist: PlaylistEntity) {
+        playlistsMap[playlist.id] = playlist
+        notifyChanges()
+    }
     override suspend fun deletePlaylist(playlist: PlaylistEntity) { playlistsMap.remove(playlist.id); notifyChanges() }
     override fun getPlaylistItems(playlistId: Long): Flow<List<PlaylistItemEntity>> = MutableStateFlow(playlistItemsMap.values.filter { it.playlistId == playlistId })
     override suspend fun insertPlaylistItem(item: PlaylistItemEntity): Long {
@@ -240,6 +249,7 @@ class FakeAudiobookDao : AudiobookDao {
     override fun getAudiobooksBySeries(seriesTitle: String): Flow<List<AudiobookEntity>> = MutableStateFlow(emptyList())
     override suspend fun insertAudiobook(audiobook: AudiobookEntity): Long = 1L
     override suspend fun updateAudiobook(audiobook: AudiobookEntity) {}
+    override suspend fun updateAudiobookPosition(id: Long, positionMs: Long) {}
     override suspend fun deleteAudiobook(audiobook: AudiobookEntity) {}
     override fun getAllBookSeries(): Flow<List<BookSeriesEntity>> = MutableStateFlow(emptyList())
     override suspend fun getBookSeriesById(id: Long): BookSeriesEntity? = null
@@ -250,4 +260,22 @@ class FakeAudiobookDao : AudiobookDao {
     override suspend fun updateAudiobooksSeriesMetadata(oldSeriesTitle: String, newSeriesTitle: String, newGenre: String) {}
     override suspend fun deleteAllAudiobooks() {}
     override suspend fun deleteAllBookSeries() {}
+}
+
+class FakeShortsDao : ShortsDao {
+    private val shortsMap = mutableMapOf<Long, ShortVideoEntity>()
+    private val shortsFlow = MutableStateFlow<List<ShortVideoEntity>>(emptyList())
+
+    override fun getAllShorts(): Flow<List<ShortVideoEntity>> = shortsFlow
+    override fun getSavedShorts(): Flow<List<ShortVideoEntity>> = shortsFlow.map { list -> list.filter { it.isSaved } }
+    override suspend fun getShortByUri(uri: String): ShortVideoEntity? = shortsMap.values.firstOrNull { it.uri == uri || it.filePath == uri }
+    override suspend fun insertShort(short: ShortVideoEntity): Long {
+        val id = if (short.id == 0L) (shortsMap.keys.maxOrNull() ?: 0L) + 1 else short.id
+        shortsMap[id] = short.copy(id = id)
+        shortsFlow.value = shortsMap.values.toList()
+        return id
+    }
+    override suspend fun updateShort(short: ShortVideoEntity) { shortsMap[short.id] = short; shortsFlow.value = shortsMap.values.toList() }
+    override suspend fun deleteShort(short: ShortVideoEntity) { shortsMap.remove(short.id); shortsFlow.value = shortsMap.values.toList() }
+    override suspend fun deleteAllShorts() { shortsMap.clear(); shortsFlow.value = emptyList() }
 }

@@ -8,6 +8,7 @@ import com.example.atuneslegacy.data.local.dao.AudiobookDao
 import com.example.atuneslegacy.data.local.dao.MovieDao
 import com.example.atuneslegacy.data.local.dao.MusicDao
 import com.example.atuneslegacy.data.local.dao.PodcastDao
+import com.example.atuneslegacy.data.local.dao.ShortsDao
 import com.example.atuneslegacy.data.local.dao.TvDao
 import com.example.atuneslegacy.data.local.entity.AlbumEntity
 import com.example.atuneslegacy.data.local.entity.ArtistEntity
@@ -19,6 +20,7 @@ import com.example.atuneslegacy.data.local.entity.PlaylistEntity
 import com.example.atuneslegacy.data.local.entity.PlaylistItemEntity
 import com.example.atuneslegacy.data.local.entity.PodcastEpisodeEntity
 import com.example.atuneslegacy.data.local.entity.PodcastShowEntity
+import com.example.atuneslegacy.data.local.entity.ShortVideoEntity
 import com.example.atuneslegacy.data.local.entity.SongEntity
 import com.example.atuneslegacy.data.local.entity.TvEpisodeEntity
 import com.example.atuneslegacy.data.local.entity.TvShowEntity
@@ -37,9 +39,10 @@ import com.example.atuneslegacy.data.local.entity.TvShowEntity
         PodcastShowEntity::class,
         PodcastEpisodeEntity::class,
         AudiobookEntity::class,
-        BookSeriesEntity::class
+        BookSeriesEntity::class,
+        ShortVideoEntity::class
     ],
-    version = 4,
+    version = 7,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -48,6 +51,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun movieDao(): MovieDao
     abstract fun podcastDao(): PodcastDao
     abstract fun audiobookDao(): AudiobookDao
+    abstract fun shortsDao(): ShortsDao
 
     companion object {
         @Volatile

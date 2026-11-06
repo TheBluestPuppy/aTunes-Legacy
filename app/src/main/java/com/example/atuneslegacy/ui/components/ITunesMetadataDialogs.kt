@@ -1219,6 +1219,7 @@ fun AudiobookMetadataDialog(
     var genre by remember(book) { mutableStateOf(book.genre) }
     var pubYear by remember(book) { mutableStateOf(book.publicationYear.toString()) }
     var coverUri by remember(book) { mutableStateOf(book.portraitCoverUri) }
+    var description by remember(book) { mutableStateOf(book.description) }
 
     val imagePicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -1239,7 +1240,8 @@ fun AudiobookMetadataDialog(
                     bookNumberInSeries = bookNumber.toIntOrNull() ?: book.bookNumberInSeries,
                     genre = genre.trim(),
                     publicationYear = pubYear.toIntOrNull() ?: book.publicationYear,
-                    portraitCoverUri = coverUri
+                    portraitCoverUri = coverUri,
+                    description = description.trim()
                 )
             )
         },
@@ -1316,6 +1318,13 @@ fun AudiobookMetadataDialog(
                 onValueChange = { genre = it },
                 label = "Genre",
                 suggestions = genreSuggestions
+            )
+            OutlinedTextField(
+                value = description,
+                onValueChange = { description = it },
+                label = { Text("Description") },
+                maxLines = 4,
+                modifier = Modifier.fillMaxWidth()
             )
         }
     }

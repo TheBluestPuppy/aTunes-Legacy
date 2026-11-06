@@ -7,6 +7,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -45,10 +46,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
+import com.example.atuneslegacy.R
 import com.example.atuneslegacy.data.local.entity.SongEntity
 import com.example.atuneslegacy.ui.theme.LocalThemeColors
 import com.example.atuneslegacy.ui.viewmodel.MainViewModel
@@ -143,100 +147,130 @@ fun RecordingsScreen(
         }
     }
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .background(themeColors.background)
-    ) {
-        // Recorder Controls Header
-        Surface(
-            color = themeColors.surface,
-            border = androidx.compose.foundation.BorderStroke(0.5.dp, themeColors.surfaceBorder),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+    Box(modifier = modifier.fillMaxSize()) {
+        AsyncImage(
+            model = R.drawable.ios6_background,
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.fillMaxSize()
+        )
+
+        Column(modifier = Modifier.fillMaxSize()) {
+            // Recorder Controls Header
+            Surface(
+                color = themeColors.surface,
+                border = androidx.compose.foundation.BorderStroke(0.5.dp, themeColors.surfaceBorder),
+                modifier = Modifier.fillMaxWidth()
             ) {
-                Text(
-                    text = if (isRecording) (if (isPaused) "Recording Paused..." else "Recording Voice...") else "Voice Recorder",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = themeColors.textPrimary
-                )
-                Spacer(modifier = Modifier.height(12.dp))
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    if (!isRecording) {
-                        Button(
-                            onClick = { startRecording() },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDC2626)),
-                            shape = RoundedCornerShape(20.dp)
-                        ) {
-                            Icon(Icons.Default.Mic, contentDescription = "Record", tint = Color.White)
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("Record", color = Color.White, fontWeight = FontWeight.Bold)
-                        }
-                    } else {
-                        Button(
-                            onClick = { pauseRecording() },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD97706)),
-                            shape = RoundedCornerShape(20.dp)
-                        ) {
-                            Icon(Icons.Default.Pause, contentDescription = "Pause", tint = Color.White)
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(if (isPaused) "Resume" else "Pause", color = Color.White, fontWeight = FontWeight.Bold)
-                        }
-                        Button(
-                            onClick = { stopRecording() },
-                            colors = ButtonDefaults.buttonColors(containerColor = themeColors.primaryAccent),
-                            shape = RoundedCornerShape(20.dp)
-                        ) {
-                            Icon(Icons.Default.Stop, contentDescription = "Stop", tint = Color.White)
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("Stop & Save", color = Color.White, fontWeight = FontWeight.Bold)
+                    Text(
+                        text = if (isRecording) (if (isPaused) "Recording Paused..." else "Recording Voice...") else "Voice Recorder",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = themeColors.textPrimary
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        if (!isRecording) {
+                            Button(
+                                onClick = { startRecording() },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDC2626)),
+                                shape = RoundedCornerShape(20.dp)
+                            ) {
+                                Icon(Icons.Default.Mic, contentDescription = "Record", tint = Color.White)
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Record", color = Color.White, fontWeight = FontWeight.Bold)
+                            }
+                        } else {
+                            Button(
+                                onClick = { pauseRecording() },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD97706)),
+                                shape = RoundedCornerShape(20.dp)
+                            ) {
+                                Icon(Icons.Default.Pause, contentDescription = "Pause", tint = Color.White)
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(if (isPaused) "Resume" else "Pause", color = Color.White, fontWeight = FontWeight.Bold)
+                            }
+                            Button(
+                                onClick = { stopRecording() },
+                                colors = ButtonDefaults.buttonColors(containerColor = themeColors.primaryAccent),
+                                shape = RoundedCornerShape(20.dp)
+                            ) {
+                                Icon(Icons.Default.Stop, contentDescription = "Stop", tint = Color.White)
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Stop & Save", color = Color.White, fontWeight = FontWeight.Bold)
+                            }
                         }
                     }
                 }
             }
-        }
 
-        HorizontalDivider(color = themeColors.surfaceBorder, thickness = 0.5.dp)
+            HorizontalDivider(color = themeColors.surfaceBorder, thickness = 0.5.dp)
 
-        // Recordings List
-        if (recordingFiles.isEmpty()) {
-            EmptyMediaNotice(
-                title = "No Voice Recordings",
-                subtitle = "Recordings saved to Internal Storage > Recordings > aTunes will appear here.\n(Long press any recording to edit name/tag or delete)"
-            )
-        } else {
-            val currentYear = Calendar.getInstance().get(Calendar.YEAR)
-            LazyColumn(
-                contentPadding = PaddingValues(12.dp),
-                modifier = Modifier.fillMaxSize()
-            ) {
-                itemsIndexed(recordingFiles) { index, file ->
-                    val songEntity = SongEntity(
-                        id = file.absolutePath.hashCode().toLong(),
-                        title = file.name,
-                        artist = "Voice Recorder",
-                        albumArtist = "aTunes",
-                        albumTitle = "Recordings",
-                        genre = "Voice",
-                        year = currentYear,
-                        trackNumber = index + 1,
-                        uri = android.net.Uri.fromFile(file).toString()
-                    )
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(themeColors.surface, RoundedCornerShape(6.dp))
-                            .border(0.5.dp, themeColors.surfaceBorder, RoundedCornerShape(6.dp))
-                            .combinedClickable(
-                                onClick = {
-                                    viewModel.playSong(songEntity, recordingFiles.map { f ->
+            // Recordings List
+            if (recordingFiles.isEmpty()) {
+                EmptyMediaNotice(
+                    title = "No Voice Recordings",
+                    subtitle = "Recordings saved to Internal Storage > Recordings > aTunes will appear here.\n(Long press any recording to edit name/tag or delete)"
+                )
+            } else {
+                val currentYear = Calendar.getInstance().get(Calendar.YEAR)
+                LazyColumn(
+                    contentPadding = PaddingValues(12.dp),
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    itemsIndexed(recordingFiles) { index, file ->
+                        val songEntity = SongEntity(
+                            id = file.absolutePath.hashCode().toLong(),
+                            title = file.name,
+                            artist = "Voice Recorder",
+                            albumArtist = "aTunes",
+                            albumTitle = "Recordings",
+                            genre = "Voice",
+                            year = currentYear,
+                            trackNumber = index + 1,
+                            uri = android.net.Uri.fromFile(file).toString()
+                        )
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(themeColors.surface, RoundedCornerShape(6.dp))
+                                .border(0.5.dp, themeColors.surfaceBorder, RoundedCornerShape(6.dp))
+                                .combinedClickable(
+                                    onClick = {
+                                        viewModel.playSong(songEntity, recordingFiles.map { f ->
+                                            SongEntity(
+                                                id = f.absolutePath.hashCode().toLong(),
+                                                title = f.name,
+                                                artist = "Voice Recorder",
+                                                albumArtist = "aTunes",
+                                                albumTitle = "Recordings",
+                                                genre = "Voice",
+                                                year = currentYear,
+                                                uri = android.net.Uri.fromFile(f).toString()
+                                            )
+                                        })
+                                    },
+                                    onLongClick = {
+                                        editingRecording = file
+                                    }
+                                )
+                                .padding(12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                IconButton(
+                                    onClick = { viewModel.playSong(songEntity, recordingFiles.map { f ->
                                         SongEntity(
                                             id = f.absolutePath.hashCode().toLong(),
                                             title = f.name,
@@ -247,56 +281,31 @@ fun RecordingsScreen(
                                             year = currentYear,
                                             uri = android.net.Uri.fromFile(f).toString()
                                         )
-                                    })
-                                },
-                                onLongClick = {
-                                    editingRecording = file
+                                    }) },
+                                    modifier = Modifier
+                                        .background(themeColors.primaryAccent, CircleShape)
+                                        .size(36.dp)
+                                ) {
+                                    Icon(Icons.Default.PlayArrow, contentDescription = "Play", tint = Color.White, modifier = Modifier.size(20.dp))
                                 }
-                            )
-                            .padding(12.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            IconButton(
-                                onClick = { viewModel.playSong(songEntity, recordingFiles.map { f ->
-                                    SongEntity(
-                                        id = f.absolutePath.hashCode().toLong(),
-                                        title = f.name,
-                                        artist = "Voice Recorder",
-                                        albumArtist = "aTunes",
-                                        albumTitle = "Recordings",
-                                        genre = "Voice",
-                                        year = currentYear,
-                                        uri = android.net.Uri.fromFile(f).toString()
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Column {
+                                    Text(
+                                        text = file.name,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = themeColors.textPrimary
                                     )
-                                }) },
-                                modifier = Modifier
-                                    .background(themeColors.primaryAccent, CircleShape)
-                                    .size(36.dp)
-                            ) {
-                                Icon(Icons.Default.PlayArrow, contentDescription = "Play", tint = Color.White, modifier = Modifier.size(20.dp))
-                            }
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Column {
-                                Text(
-                                    text = file.name,
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = themeColors.textPrimary
-                                )
-                                Text(
-                                    text = "${file.length() / 1024} KB • ${displayDateFormat.format(Date(file.lastModified()))}",
-                                    fontSize = 11.sp,
-                                    color = themeColors.textSecondary
-                                )
+                                    Text(
+                                        text = "${file.length() / 1024} KB • ${displayDateFormat.format(Date(file.lastModified()))}",
+                                        fontSize = 11.sp,
+                                        color = themeColors.textSecondary
+                                    )
+                                }
                             }
                         }
+                        Spacer(modifier = Modifier.height(8.dp))
                     }
-                    Spacer(modifier = Modifier.height(8.dp))
                 }
             }
         }
@@ -314,7 +323,7 @@ fun RecordingsScreen(
                 refreshTrigger++
             },
             onDelete = {
-                file.delete()
+                viewModel.deleteVoiceRecording(file)
                 editingRecording = null
                 refreshTrigger++
             }

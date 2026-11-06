@@ -1,9 +1,11 @@
 package com.example.atuneslegacy.ui
 
+import android.app.Activity
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.ActivityInfo
 import android.content.res.Configuration
 import androidx.activity.compose.BackHandler
 import androidx.compose.ui.platform.LocalConfiguration
@@ -38,6 +40,7 @@ import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.SkipNext
+import androidx.compose.material.icons.filled.SmartDisplay
 import androidx.compose.material.icons.outlined.Book
 import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.Mic
@@ -93,8 +96,8 @@ import com.example.atuneslegacy.ui.screens.GamesScreen
 import com.example.atuneslegacy.ui.screens.MoviesScreen
 import com.example.atuneslegacy.ui.screens.MusicScreen
 import com.example.atuneslegacy.ui.screens.OnboardingWizardScreen
-import com.example.atuneslegacy.ui.screens.PhotosScreen
 import com.example.atuneslegacy.ui.screens.PodcastsScreen
+import com.example.atuneslegacy.ui.screens.ShortsScreen
 import com.example.atuneslegacy.ui.screens.ProfileScreen
 import com.example.atuneslegacy.ui.screens.RecordingsScreen
 import com.example.atuneslegacy.ui.screens.SettingsScreen
@@ -105,9 +108,10 @@ import com.example.atuneslegacy.ui.theme.ITunesActiveSegmentStart
 import com.example.atuneslegacy.ui.theme.ITunesTopBarBorder
 import com.example.atuneslegacy.ui.theme.ITunesTopBarEnd
 import com.example.atuneslegacy.ui.theme.ITunesTopBarStart
+import androidx.media3.common.util.UnstableApi
 import com.example.atuneslegacy.ui.viewmodel.MainViewModel
 
-@OptIn(androidx.media3.common.util.UnstableApi::class)
+@OptIn(UnstableApi::class)
 @Composable
 fun MainScreen(
     viewModel: MainViewModel,
@@ -124,16 +128,30 @@ fun MainScreen(
         return
     }
 
-    val configuration = LocalConfiguration.current
-    val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
-    val showVideoPlayer by viewModel.mediaPlayerManager.showVideoPlayer.collectAsState()
-    if (isLandscape && !showVideoPlayer) {
-        CoverFlowScreen(viewModel = viewModel, modifier = modifier)
-        return
+    val currentTab by viewModel.currentTab.collectAsState()
+    val context = LocalContext.current
+    val activity = context as? Activity
+
+    DisposableEffect(currentTab) {
+        if (currentTab == MainTab.SHORTS) {
+            activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        } else {
+            activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+        }
+        onDispose {
+            activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+        }
     }
 
     val themeColors = LocalThemeColors.current
-    val currentTab by viewModel.currentTab.collectAsState()
+    val configuration = LocalConfiguration.current
+    val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val showVideoPlayer by viewModel.mediaPlayerManager.showVideoPlayer.collectAsState()
+    val showMusicPlayer by viewModel.mediaPlayerManager.showMusicPlayer.collectAsState()
+    if (isLandscape && !showVideoPlayer && currentTab != MainTab.SHORTS) {
+        CoverFlowScreen(viewModel = viewModel, modifier = modifier)
+        return
+    }
     val searchQuery by viewModel.searchQuery.collectAsState()
     val showProfilePage by viewModel.showProfilePage.collectAsState()
     val selectedAlbum by viewModel.selectedAlbum.collectAsState()
@@ -150,8 +168,10 @@ fun MainScreen(
             currentTab != MainTab.MUSIC ||
             musicSubTab != MusicSubTab.SONGS
 
-    BackHandler(enabled = canGoBack) {
+    BackHandler(enabled = canGoBack || showVideoPlayer || showMusicPlayer) {
         when {
+            showVideoPlayer -> viewModel.mediaPlayerManager.hideVideoPlayer()
+            showMusicPlayer -> viewModel.mediaPlayerManager.hideMusicPlayer()
             showProfilePage -> viewModel.setShowProfilePage(false)
             selectedAlbum != null -> viewModel.selectAlbum(null)
             selectedArtist != null -> viewModel.selectArtist(null)
@@ -171,10 +191,8 @@ fun MainScreen(
 
     val showCreatePlaylistDialog by viewModel.showCreatePlaylistDialog.collectAsState()
     val showAddMediaDialog by viewModel.showAddMediaDialog.collectAsState()
-    val showMusicPlayer by viewModel.mediaPlayerManager.showMusicPlayer.collectAsState()
 
     // Screen Off Listener for Video Playback Control
-    val context = LocalContext.current
     DisposableEffect(context) {
         val receiver = object : BroadcastReceiver() {
             override fun onReceive(ctx: Context?, intent: Intent?) {
@@ -239,7 +257,7 @@ fun MainScreen(
                     MainTab.MOVIES -> "${movies.size} Movies"
                     MainTab.PODCASTS -> "${podcasts.size} Podcasts"
                     MainTab.AUDIOBOOKS -> "${audiobooks.size} Audiobooks"
-                    MainTab.PHOTOS -> "Photos Library"
+                    MainTab.SHORTS -> "Shorts Library"
                     MainTab.RECORDINGS -> "Voice Recordings"
                     MainTab.GAMES -> "Apps & Games"
                     MainTab.SETTINGS -> "aTunes Settings & Profile"
@@ -437,7 +455,7 @@ fun MainScreen(
                                 MainTab.MOVIES -> Icons.Outlined.Movie
                                 MainTab.PODCASTS -> Icons.Outlined.Podcasts
                                 MainTab.AUDIOBOOKS -> Icons.Outlined.Book
-                                MainTab.PHOTOS -> Icons.Outlined.Image
+                                MainTab.SHORTS -> Icons.Default.SmartDisplay
                                 MainTab.RECORDINGS -> Icons.Outlined.Mic
                                 MainTab.GAMES -> Icons.Outlined.SportsEsports
                                 MainTab.SETTINGS -> Icons.Outlined.Settings
@@ -522,7 +540,7 @@ fun MainScreen(
                     MainTab.MOVIES -> MoviesScreen(viewModel = viewModel)
                     MainTab.PODCASTS -> PodcastsScreen(viewModel = viewModel)
                     MainTab.AUDIOBOOKS -> AudiobooksScreen(viewModel = viewModel)
-                    MainTab.PHOTOS -> PhotosScreen(viewModel = viewModel)
+                    MainTab.SHORTS -> ShortsScreen(viewModel = viewModel)
                     MainTab.RECORDINGS -> RecordingsScreen(viewModel = viewModel)
                     MainTab.GAMES -> GamesScreen(viewModel = viewModel)
                     MainTab.SETTINGS -> SettingsScreen(viewModel = viewModel)
@@ -689,6 +707,7 @@ fun MainScreen(
     if (showMusicPlayer) {
         MusicPlayerOverlay(
             mediaPlayerManager = viewModel.mediaPlayerManager,
+            viewModel = viewModel,
             onDismiss = { viewModel.mediaPlayerManager.hideMusicPlayer() }
         )
     }

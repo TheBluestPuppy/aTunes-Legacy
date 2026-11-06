@@ -2,6 +2,15 @@ package com.example.atuneslegacy.data.local.entity
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey
+import kotlinx.serialization.Serializable
+
+@Serializable
+data class AudiobookChapter(
+    val time: String,
+    val timeMs: Long,
+    val title: String,
+    val number: Int
+)
 
 @Entity(tableName = "audiobooks")
 data class AudiobookEntity(
@@ -15,7 +24,10 @@ data class AudiobookEntity(
     val publicationYear: Int = 0,
     val portraitCoverUri: String = "",
     val audioPath: String = "",
-    val uri: String
+    val uri: String,
+    val lastPlaybackPositionMs: Long = 0L,
+    val description: String = "",
+    val chaptersJson: String = ""
 )
 
 @Entity(tableName = "book_series")

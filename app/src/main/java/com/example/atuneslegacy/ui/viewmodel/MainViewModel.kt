@@ -2,9 +2,11 @@ package com.example.atuneslegacy.ui.viewmodel
 
 import android.app.Application
 import android.net.Uri
+import java.io.File
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.atuneslegacy.data.auth.AuthHelper
+import com.example.atuneslegacy.data.importing.ATunesLibrarySyncEngine
 import com.example.atuneslegacy.data.importing.ImportCategory
 import com.example.atuneslegacy.data.importing.MediaImportHelper
 import com.example.atuneslegacy.data.importing.spotify.*
@@ -12,6 +14,7 @@ import com.example.atuneslegacy.data.preferences.UserProfilePreferences
 import com.example.atuneslegacy.data.local.AppDatabase
 import com.example.atuneslegacy.data.local.entity.AlbumEntity
 import com.example.atuneslegacy.data.local.entity.ArtistEntity
+import com.example.atuneslegacy.data.local.entity.AudiobookChapter
 import com.example.atuneslegacy.data.local.entity.AudiobookEntity
 import com.example.atuneslegacy.data.local.entity.BookSeriesEntity
 import com.example.atuneslegacy.data.local.entity.GameShortcutEntity
@@ -35,6 +38,7 @@ import com.example.atuneslegacy.ui.navigation.PodcastSubTab
 import com.example.atuneslegacy.ui.theme.AppTheme
 import io.github.jan.supabase.auth.user.UserInfo
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -52,7 +56,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         tvDao = db.tvDao(),
         movieDao = db.movieDao(),
         podcastDao = db.podcastDao(),
-        audiobookDao = db.audiobookDao()
+        audiobookDao = db.audiobookDao(),
+        shortsDao = db.shortsDao()
     )
     val authHelper = AuthHelper()
     val mediaPlayerManager = MediaPlayerManager(application)
@@ -66,6 +71,58 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     val isFirstLaunchCompleted: StateFlow<Boolean> = userPrefs.isFirstLaunchCompletedFlow
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
+    private data class AudiobookPlaybackState(
+        val media: MediaItemMetadata?,
+        val isPlaying: Boolean,
+        val positionMs: Long,
+        val durationMs: Long
+    )
+
+    init {
+        viewModelScope.launch(Dispatchers.IO) {
+            val context = application.applicationContext
+            MediaImportHelper.populateMissingArtwork(context, mediaRepository)
+        }
+
+        viewModelScope.launch(Dispatchers.IO) {
+            var lastSavedPosition = -1L
+            var lastSavedBookId: Long? = null
+
+            combine(
+                mediaPlayerManager.currentMedia,
+                mediaPlayerManager.isPlaying,
+                mediaPlayerManager.currentPositionMs,
+                mediaPlayerManager.durationMs
+            ) { media, playing, pos, duration ->
+                AudiobookPlaybackState(media, playing, pos, duration)
+            }.collect { state ->
+                val media = state.media
+                if (media != null && media.mediaType == MediaType.AUDIOBOOK) {
+                    val bookId = media.id.removePrefix("book_").toLongOrNull()
+                    if (bookId != null) {
+                        val pos = state.positionMs
+                        val duration = state.durationMs
+                        val isFinished = duration > 0 && pos >= (duration - 2000L)
+                        val targetPosition = if (isFinished) 0L else pos
+
+                        val bookChanged = lastSavedBookId != bookId
+                        val positionChangedSubstantially = Math.abs(targetPosition - lastSavedPosition) >= 2000L
+                        val isPaused = !state.isPlaying
+
+                        if (bookChanged || positionChangedSubstantially || isPaused || isFinished) {
+                            mediaRepository.updateAudiobookPosition(bookId, targetPosition)
+                            lastSavedBookId = bookId
+                            lastSavedPosition = targetPosition
+                        }
+                    }
+                } else if (lastSavedBookId != null) {
+                    lastSavedBookId = null
+                    lastSavedPosition = -1L
+                }
+            }
+        }
+    }
 
     fun completeFirstLaunch() {
         viewModelScope.launch {
@@ -326,8 +383,30 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val allBookSeries: StateFlow<List<BookSeriesEntity>> = mediaRepository.getAllBookSeries()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val allShorts: StateFlow<List<com.example.atuneslegacy.data.local.entity.ShortVideoEntity>> = mediaRepository.getAllShorts()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val savedShorts: StateFlow<List<com.example.atuneslegacy.data.local.entity.ShortVideoEntity>> = mediaRepository.getSavedShorts()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    fun toggleSaveShort(short: com.example.atuneslegacy.data.local.entity.ShortVideoEntity) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val updated = short.copy(
+                isSaved = !short.isSaved,
+                savedTimestamp = if (!short.isSaved) System.currentTimeMillis() else 0L
+            )
+            mediaRepository.updateShort(updated)
+        }
+    }
+
     init {
         checkUserAuth()
+        try {
+            val context = getApplication<Application>().applicationContext
+            ATunesLibrarySyncEngine.getMasterLibraryDir(context)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
         scanATunesDirectory()
     }
 
@@ -335,7 +414,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 val context = getApplication<Application>().applicationContext
-                MediaImportHelper.scanAndImportATunesDirectory(context, mediaRepository)
+                ATunesLibrarySyncEngine.syncLibrary(context, mediaRepository)
             } catch (e: Exception) {
                 e.printStackTrace()
             }
@@ -425,9 +504,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun setEditingBookSeries(series: BookSeriesEntity?) { _editingBookSeries.value = series }
 
     fun updateSong(song: SongEntity) {
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.IO) {
             mediaRepository.updateSong(song)
             if (song.albumTitle.isNotBlank() && song.albumTitle != "Unknown Album") {
+                val songsInAlbum = mediaRepository.getSongsByAlbum(song.albumTitle).first()
+                val firstSongArt = songsInAlbum.minByOrNull { it.trackNumber }?.artworkUri ?: song.artworkUri
+
                 val existingAlbum = mediaRepository.getAlbumByTitle(song.albumTitle)
                 if (existingAlbum == null) {
                     mediaRepository.insertAlbum(
@@ -436,25 +518,27 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                             albumArtist = song.albumArtist.ifBlank { song.artist },
                             genre = song.genre,
                             releaseYear = song.year,
-                            albumCoverUri = song.artworkUri
+                            albumCoverUri = firstSongArt
                         )
                     )
                 } else {
                     val updated = existingAlbum.copy(
                         albumArtist = if (existingAlbum.albumArtist.isBlank() || existingAlbum.albumArtist == "Unknown Artist") song.albumArtist else existingAlbum.albumArtist,
-                        albumCoverUri = existingAlbum.albumCoverUri.ifBlank { song.artworkUri }
+                        albumCoverUri = firstSongArt
                     )
                     mediaRepository.updateAlbum(updated)
                 }
             }
             _editingSong.value = null
+            scanATunesDirectory()
         }
     }
 
     fun updateAlbum(oldTitle: String, album: AlbumEntity) {
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.IO) {
             mediaRepository.updateAlbumAndCascade(oldTitle, album)
             _editingAlbum.value = null
+            scanATunesDirectory()
         }
     }
 
@@ -465,41 +549,53 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val updated = show.copy(logoThumbnailUri = permanentLogo)
             mediaRepository.updateTvShowAndCascade(oldTitle, updated)
             _editingTvShow.value = null
+            scanATunesDirectory()
         }
     }
 
     fun updateTvEpisode(episode: TvEpisodeEntity) {
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.IO) {
             mediaRepository.updateTvEpisode(episode)
             _editingTvEpisode.value = null
+            scanATunesDirectory()
         }
     }
 
     fun updateMovie(movie: MovieEntity) {
-        viewModelScope.launch {
-            mediaRepository.updateMovie(movie)
+        viewModelScope.launch(Dispatchers.IO) {
+            val context = getApplication<Application>().applicationContext
+            val permanentPoster = ImagePersister.persistImageLocally(context, movie.thumbnailUri, "movie")
+            val updated = movie.copy(thumbnailUri = permanentPoster)
+            mediaRepository.updateMovie(updated)
             _editingMovie.value = null
+            scanATunesDirectory()
         }
     }
 
     fun updatePodcastShow(oldName: String, show: PodcastShowEntity) {
-        viewModelScope.launch {
-            mediaRepository.updatePodcastShowAndCascade(oldName, show)
+        viewModelScope.launch(Dispatchers.IO) {
+            val context = getApplication<Application>().applicationContext
+            val permanentLogo = ImagePersister.persistImageLocally(context, show.logoThumbnailUri, "podcast")
+            val updated = show.copy(logoThumbnailUri = permanentLogo)
+            mediaRepository.updatePodcastShowAndCascade(oldName, updated)
             _editingPodcastShow.value = null
+            scanATunesDirectory()
         }
     }
 
     fun updatePodcastEpisode(episode: PodcastEpisodeEntity) {
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.IO) {
             mediaRepository.updatePodcastEpisode(episode)
             _editingPodcastEpisode.value = null
+            scanATunesDirectory()
         }
     }
 
     fun updateAudiobook(book: AudiobookEntity) {
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.IO) {
             mediaRepository.updateAudiobook(book)
             _editingAudiobook.value = null
+            scanATunesDirectory()
         }
     }
 
@@ -557,17 +653,36 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun playPodcastEpisode(episode: PodcastEpisodeEntity) {
-        val mediaItem = MediaItemMetadata(
-            id = "podcast_${episode.id}",
-            title = episode.title,
-            subtitle = episode.podcastName,
-            albumOrCategory = episode.podcastName,
-            mediaUri = episode.uri,
-            artworkUri = "",
-            isVideo = false,
-            mediaType = MediaType.PODCAST
-        )
-        mediaPlayerManager.playMedia(mediaItem)
+        viewModelScope.launch {
+            val allEpisodes = mediaRepository.getAllPodcastEpisodes().first()
+            val showEpisodes = allEpisodes
+                .filter { it.podcastName.equals(episode.podcastName, ignoreCase = true) }
+                .sortedWith(compareBy({ it.seasonNumber }, { it.episodeNumber }))
+
+            val mediaPlaylist = showEpisodes.map { ep ->
+                MediaItemMetadata(
+                    id = "podcast_${ep.id}",
+                    title = ep.title,
+                    subtitle = ep.podcastName,
+                    albumOrCategory = ep.podcastName,
+                    mediaUri = ep.uri,
+                    artworkUri = "",
+                    isVideo = false,
+                    mediaType = MediaType.PODCAST
+                )
+            }
+            val target = mediaPlaylist.firstOrNull { it.id == "podcast_${episode.id}" } ?: mediaPlaylist.firstOrNull() ?: MediaItemMetadata(
+                id = "podcast_${episode.id}",
+                title = episode.title,
+                subtitle = episode.podcastName,
+                albumOrCategory = episode.podcastName,
+                mediaUri = episode.uri,
+                artworkUri = "",
+                isVideo = false,
+                mediaType = MediaType.PODCAST
+            )
+            mediaPlayerManager.playMedia(target, mediaPlaylist)
+        }
     }
 
     fun playAudiobook(book: AudiobookEntity) {
@@ -581,7 +696,24 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             isVideo = false,
             mediaType = MediaType.AUDIOBOOK
         )
-        mediaPlayerManager.playMedia(mediaItem)
+        mediaPlayerManager.playMedia(mediaItem, startPositionMs = book.lastPlaybackPositionMs)
+    }
+
+    fun playAudiobookAtChapter(book: AudiobookEntity, chapter: AudiobookChapter) {
+        val mediaItem = MediaItemMetadata(
+            id = "book_${book.id}",
+            title = book.title,
+            subtitle = book.author,
+            albumOrCategory = book.genre,
+            mediaUri = book.uri,
+            artworkUri = book.portraitCoverUri,
+            isVideo = false,
+            mediaType = MediaType.AUDIOBOOK
+        )
+        mediaPlayerManager.playMedia(mediaItem, startPositionMs = chapter.timeMs)
+        viewModelScope.launch {
+            mediaRepository.updateAudiobookPosition(book.id, chapter.timeMs)
+        }
     }
 
     // --- MEDIA DELETION METHODS ---
@@ -665,6 +797,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     override fun onCleared() {
         super.onCleared()
+        val media = mediaPlayerManager.currentMedia.value
+        if (media?.mediaType == MediaType.AUDIOBOOK) {
+            val bookId = media.id.removePrefix("book_").toLongOrNull()
+            val pos = mediaPlayerManager.currentPositionMs.value
+            if (bookId != null && pos > 0) {
+                runBlocking(Dispatchers.IO) {
+                    mediaRepository.updateAudiobookPosition(bookId, pos)
+                }
+            }
+        }
         mediaPlayerManager.release()
     }
 
@@ -673,6 +815,58 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             mediaRepository.insertPlaylist(PlaylistEntity(title = title.trim()))
             _showCreatePlaylistDialog.value = false
+        }
+    }
+
+    fun renamePlaylist(playlistId: Long, newTitle: String) {
+        if (newTitle.isBlank()) return
+        viewModelScope.launch(Dispatchers.IO) {
+            val playlists = mediaRepository.getAllPlaylists().first()
+            val playlist = playlists.firstOrNull { it.id == playlistId }
+            if (playlist != null) {
+                mediaRepository.updatePlaylist(playlist.copy(title = newTitle.trim()))
+            }
+        }
+    }
+
+    fun addSongToPlaylist(playlistId: Long, songId: Long) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val items = mediaRepository.getPlaylistItems(playlistId).first()
+            val nextPos = (items.maxOfOrNull { it.position } ?: -1) + 1
+            mediaRepository.insertPlaylistItem(
+                PlaylistItemEntity(
+                    playlistId = playlistId,
+                    songId = songId,
+                    position = nextPos
+                )
+            )
+        }
+    }
+
+    fun addCurrentMediaToPlaylist(playlistId: Long, currentMedia: MediaItemMetadata?) {
+        if (currentMedia == null) return
+        viewModelScope.launch(Dispatchers.IO) {
+            val allSongs = mediaRepository.getAllSongs().first()
+            val song = allSongs.firstOrNull { it.uri == currentMedia.mediaUri || it.title.equals(currentMedia.title, ignoreCase = true) }
+            if (song != null) {
+                addSongToPlaylist(playlistId, song.id)
+            } else {
+                val songId = currentMedia.id.removePrefix("song_").toLongOrNull() ?: System.currentTimeMillis()
+                val newSong = SongEntity(
+                    id = songId,
+                    title = currentMedia.title,
+                    artist = currentMedia.subtitle,
+                    albumArtist = currentMedia.subtitle,
+                    albumTitle = currentMedia.albumOrCategory,
+                    genre = "Unknown",
+                    year = 2024,
+                    uri = currentMedia.mediaUri,
+                    filePath = currentMedia.mediaUri,
+                    artworkUri = currentMedia.artworkUri
+                )
+                mediaRepository.insertSong(newSong)
+                addSongToPlaylist(playlistId, newSong.id)
+            }
         }
     }
 
@@ -1186,6 +1380,23 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun deleteVoiceRecording(file: File) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val uriStr = Uri.fromFile(file).toString()
+                val existingSong = mediaRepository.getSongByFilePath(uriStr)
+                if (existingSong != null) {
+                    mediaRepository.deleteSong(existingSong)
+                }
+                if (file.exists()) {
+                    file.delete()
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
     private val _selectedSongIds = MutableStateFlow<Set<Long>>(emptySet())
     val selectedSongIds: StateFlow<Set<Long>> = _selectedSongIds.asStateFlow()
 
@@ -1252,6 +1463,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
             clearSongSelection()
             _showBulkEditDialog.value = false
+            scanATunesDirectory()
         }
     }
 
@@ -1293,22 +1505,35 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun bulkUpdateTvEpisodesMetadata(seasonStr: String, titlePrefix: String) {
+    fun bulkUpdateTvEpisodesMetadata(showTitleInput: String, seasonStr: String, titlePrefix: String) {
         val ids = _selectedTvEpisodeIds.value.toList()
         if (ids.isEmpty()) return
         viewModelScope.launch(Dispatchers.IO) {
             val season = seasonStr.toIntOrNull()
             for (id in ids) {
                 mediaRepository.getEpisodeById(id)?.let { ep ->
+                    val newShowTitle = if (showTitleInput.isNotBlank()) showTitleInput.trim() else ep.showTitle
                     val updated = ep.copy(
+                        showTitle = newShowTitle,
                         seasonNumber = season ?: ep.seasonNumber,
                         title = if (titlePrefix.isNotBlank()) "$titlePrefix ${ep.episodeNumber}" else ep.title
                     )
                     mediaRepository.updateTvEpisode(updated)
+
+                    if (mediaRepository.getTvShowByTitle(newShowTitle) == null) {
+                        mediaRepository.insertTvShow(
+                            TvShowEntity(
+                                title = newShowTitle,
+                                releaseYear = 2024,
+                                parentalRating = "TV-14"
+                            )
+                        )
+                    }
                 }
             }
             clearTvEpisodeSelection()
             _showTvBulkEditDialog.value = false
+            scanATunesDirectory()
         }
     }
 }

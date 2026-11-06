@@ -27,9 +27,10 @@ import com.example.atuneslegacy.ui.theme.LocalThemeColors
 fun TvBulkEditDialog(
     selectedCount: Int,
     onDismiss: () -> Unit,
-    onSave: (seasonStr: String, titlePrefix: String) -> Unit
+    onSave: (showTitle: String, seasonStr: String, titlePrefix: String) -> Unit
 ) {
     val themeColors = LocalThemeColors.current
+    var showTitleInput by remember { mutableStateOf("") }
     var seasonInput by remember { mutableStateOf("") }
     var titlePrefixInput by remember { mutableStateOf("") }
 
@@ -49,6 +50,18 @@ fun TvBulkEditDialog(
                     text = "Leave fields blank to keep existing values.",
                     fontSize = 12.sp,
                     color = themeColors.textSecondary
+                )
+                OutlinedTextField(
+                    value = showTitleInput,
+                    onValueChange = { showTitleInput = it },
+                    label = { Text("New TV Series / Show Title (optional)") },
+                    singleLine = true,
+                    textStyle = TextStyle(color = themeColors.inputText),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedContainerColor = themeColors.surface,
+                        unfocusedContainerColor = themeColors.surface
+                    ),
+                    modifier = Modifier.fillMaxWidth()
                 )
                 OutlinedTextField(
                     value = seasonInput,
@@ -79,7 +92,7 @@ fun TvBulkEditDialog(
         confirmButton = {
             Button(
                 onClick = {
-                    onSave(seasonInput, titlePrefixInput)
+                    onSave(showTitleInput, seasonInput, titlePrefixInput)
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = themeColors.primaryAccent)
             ) {

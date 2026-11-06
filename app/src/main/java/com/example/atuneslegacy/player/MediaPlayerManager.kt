@@ -60,6 +60,9 @@ class MediaPlayerManager(context: Context) {
     private val _durationMs = MutableStateFlow(0L)
     val durationMs: StateFlow<Long> = _durationMs.asStateFlow()
 
+    private val _volume = MutableStateFlow(1.0f)
+    val volume: StateFlow<Float> = _volume.asStateFlow()
+
     private val _playlist = MutableStateFlow<List<MediaItemMetadata>>(emptyList())
     val playlist: StateFlow<List<MediaItemMetadata>> = _playlist.asStateFlow()
 
@@ -78,6 +81,7 @@ class MediaPlayerManager(context: Context) {
     init {
         controllerFuture.addListener({
             mediaController = controllerFuture.get()
+            mediaController?.volume = _volume.value
             mediaController?.addListener(object : Player.Listener {
                 override fun onIsPlayingChanged(playing: Boolean) {
                     _isPlaying.value = playing
@@ -113,13 +117,24 @@ class MediaPlayerManager(context: Context) {
         _showMusicPlayer.value = false
     }
 
-    fun playMedia(mediaItem: MediaItemMetadata, playlist: List<MediaItemMetadata> = listOf(mediaItem)) {
+    fun setVolume(vol: Float) {
+        val clamped = vol.coerceIn(0f, 1f)
+        _volume.value = clamped
+        mediaController?.volume = clamped
+    }
+
+    fun playMedia(
+        mediaItem: MediaItemMetadata,
+        playlist: List<MediaItemMetadata> = listOf(mediaItem),
+        startPositionMs: Long = 0L
+    ) {
         _playlist.value = playlist
         val index = playlist.indexOfFirst { it.id == mediaItem.id }
         _currentIndex.value = if (index != -1) index else 0
 
         _currentMedia.value = mediaItem
         _showVideoPlayer.value = mediaItem.isVideo
+        _currentPositionMs.value = startPositionMs
 
         try {
             val uri = Uri.parse(mediaItem.mediaUri)
@@ -135,8 +150,11 @@ class MediaPlayerManager(context: Context) {
                 .build()
 
             mediaController?.apply {
-                setMediaItem(exoMediaItem)
+                setMediaItem(exoMediaItem, startPositionMs)
                 prepare()
+                if (startPositionMs > 0) {
+                    seekTo(startPositionMs)
+                }
                 play()
             }
         } catch (e: Exception) {

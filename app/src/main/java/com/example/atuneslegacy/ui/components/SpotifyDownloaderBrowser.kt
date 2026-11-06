@@ -57,58 +57,12 @@ class BlobDownloadInterface(
 
             val cleanName = if (fileName.isBlank() || fileName == "download") "track_${System.currentTimeMillis()}.mp3" else fileName
             val musicDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC)
-            val aTunesDir = File(musicDir, "aTunes Directory")
-
-            var savedSuccessfully = false
-
-            // Try MediaStore insertion for Scoped Storage (Android 10+)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                try {
-                    val values = ContentValues().apply {
-                        put(MediaStore.MediaColumns.DISPLAY_NAME, cleanName)
-                        put(MediaStore.MediaColumns.MIME_TYPE, if (cleanName.endsWith(".zip", ignoreCase = true)) "application/zip" else "audio/mpeg")
-                        put(MediaStore.MediaColumns.RELATIVE_PATH, "${Environment.DIRECTORY_MUSIC}/aTunes Directory")
-                    }
-                    val collection = if (cleanName.endsWith(".zip", ignoreCase = true)) {
-                        MediaStore.Downloads.EXTERNAL_CONTENT_URI
-                    } else {
-                        MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
-                    }
-                    val uri = context.contentResolver.insert(collection, values)
-                    if (uri != null) {
-                        context.contentResolver.openOutputStream(uri)?.use { out ->
-                            out.write(bytes)
-                        }
-                        savedSuccessfully = true
-                    }
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                }
-            }
-
-            if (!savedSuccessfully) {
-                try {
-                    if (!aTunesDir.exists()) aTunesDir.mkdirs()
-                    val targetFile = File(aTunesDir, cleanName)
-                    FileOutputStream(targetFile).use { out ->
-                        out.write(bytes)
-                    }
-                    savedSuccessfully = true
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                    val fallbackDir = File(context.getExternalFilesDir(Environment.DIRECTORY_MUSIC), "aTunes Directory")
-                    if (!fallbackDir.exists()) fallbackDir.mkdirs()
-                    val fallbackFile = File(fallbackDir, cleanName)
-                    FileOutputStream(fallbackFile).use { out ->
-                        out.write(bytes)
-                    }
-                    savedSuccessfully = true
-                }
-            }
+            val albumsDir = File(musicDir, "aTunes Library/Music/Albums")
+            if (!albumsDir.exists()) albumsDir.mkdirs()
 
             if (cleanName.endsWith(".zip", ignoreCase = true)) {
-                val folderName = cleanName.substringBeforeLast(".")
-                val targetDir = File(aTunesDir, folderName)
+                val albumName = cleanName.substringBeforeLast(".")
+                val targetDir = File(albumsDir, albumName)
                 if (!targetDir.exists()) targetDir.mkdirs()
 
                 try {
@@ -129,18 +83,26 @@ class BlobDownloadInterface(
                         }
                     }
                     android.os.Handler(android.os.Looper.getMainLooper()).post {
-                        Toast.makeText(context, "ZIP extracted to Music/aTunes Directory/$folderName/", Toast.LENGTH_LONG).show()
+                        Toast.makeText(context, "ZIP extracted to aTunes Library/Music/Albums/$albumName/", Toast.LENGTH_LONG).show()
                     }
                 } catch (e: Exception) {
                     e.printStackTrace()
                 }
             } else {
+                val albumName = cleanName.substringBeforeLast(" - ").ifBlank { "Unspecified" }
+                val albumDir = File(albumsDir, albumName)
+                if (!albumDir.exists()) albumDir.mkdirs()
+
+                val targetFile = File(albumDir, cleanName)
+                FileOutputStream(targetFile).use { out ->
+                    out.write(bytes)
+                }
                 android.os.Handler(android.os.Looper.getMainLooper()).post {
-                    Toast.makeText(context, "Saved to Music/aTunes Directory/$cleanName", Toast.LENGTH_LONG).show()
+                    Toast.makeText(context, "Saved to aTunes Library/Music/Albums/$albumName/$cleanName", Toast.LENGTH_LONG).show()
                 }
             }
 
-            // Auto-scan directory to add new music to library
+            // Auto-scan library
             viewModel.scanATunesDirectory()
 
         } catch (e: Exception) {
@@ -177,15 +139,15 @@ fun SpotifyDownloaderBrowser(
                                     if (statusIdx != -1 && cursor.getInt(statusIdx) == DownloadManager.STATUS_SUCCESSFUL) {
                                         val title = if (titleIdx != -1) cursor.getString(titleIdx) else ""
                                         val musicDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC)
-                                        val aTunesDir = File(musicDir, "aTunes Directory")
+                                        val albumsDir = File(musicDir, "aTunes Library/Music/Albums")
 
                                         if (title.endsWith(".zip", ignoreCase = true)) {
-                                            val zipFile = File(aTunesDir, title)
-                                            if (zipFile.exists()) {
-                                                val folderName = title.substringBeforeLast(".")
-                                                val targetDir = File(aTunesDir, folderName)
-                                                if (!targetDir.exists()) targetDir.mkdirs()
+                                            val albumName = title.substringBeforeLast(".")
+                                            val targetDir = File(albumsDir, albumName)
+                                            val zipFile = File(targetDir, title)
 
+                                            if (zipFile.exists()) {
+                                                if (!targetDir.exists()) targetDir.mkdirs()
                                                 try {
                                                     ZipInputStream(zipFile.inputStream()).use { zis ->
                                                         var entry = zis.nextEntry
@@ -203,14 +165,14 @@ fun SpotifyDownloaderBrowser(
                                                             entry = zis.nextEntry
                                                         }
                                                     }
-                                                    Toast.makeText(ctx, "ZIP extracted to Music/aTunes Directory/$folderName/", Toast.LENGTH_LONG).show()
+                                                    Toast.makeText(ctx, "ZIP extracted to aTunes Library/Music/Albums/$albumName/", Toast.LENGTH_LONG).show()
                                                 } catch (e: Exception) {
                                                     e.printStackTrace()
                                                 }
                                             }
                                         }
 
-                                        // Auto-scan aTunes Directory when any download completes
+                                        // Auto-scan library
                                         viewModel.scanATunesDirectory()
                                     }
                                 }
@@ -343,9 +305,15 @@ fun SpotifyDownloaderBrowser(
                                 Toast.makeText(ctx, "Processing Blob download...", Toast.LENGTH_SHORT).show()
                             } else {
                                 val musicDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC)
-                                val aTunesDir = File(musicDir, "aTunes Directory")
-                                if (!aTunesDir.exists()) {
-                                    aTunesDir.mkdirs()
+                                val albumsDir = File(musicDir, "aTunes Library/Music/Albums")
+                                val albumName = if (fileName.endsWith(".zip", ignoreCase = true)) {
+                                    fileName.substringBeforeLast(".")
+                                } else {
+                                    fileName.substringBeforeLast(" - ").ifBlank { "Unspecified" }
+                                }
+                                val albumDir = File(albumsDir, albumName)
+                                if (!albumDir.exists()) {
+                                    albumDir.mkdirs()
                                 }
 
                                 val request = DownloadManager.Request(Uri.parse(url)).apply {
@@ -356,11 +324,11 @@ fun SpotifyDownloaderBrowser(
                                     setDescription("Downloading music from SpotiDownloader...")
                                     setTitle(fileName)
                                     setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-                                    setDestinationInExternalPublicDir(Environment.DIRECTORY_MUSIC, "aTunes Directory/$fileName")
+                                    setDestinationInExternalPublicDir(Environment.DIRECTORY_MUSIC, "aTunes Library/Music/Albums/$albumName/$fileName")
                                 }
                                 val dm = ctx.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
                                 dm.enqueue(request)
-                                Toast.makeText(ctx, "Download started! Saving to Music/aTunes Directory/$fileName", Toast.LENGTH_LONG).show()
+                                Toast.makeText(ctx, "Download started! Saving to Music/aTunes Library/Music/Albums/$albumName/$fileName", Toast.LENGTH_LONG).show()
                             }
                         } catch (e: Exception) {
                             e.printStackTrace()

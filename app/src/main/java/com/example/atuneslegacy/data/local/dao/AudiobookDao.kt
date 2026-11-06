@@ -28,6 +28,9 @@ interface AudiobookDao {
     @Update
     suspend fun updateAudiobook(audiobook: AudiobookEntity)
 
+    @Query("UPDATE audiobooks SET lastPlaybackPositionMs = :positionMs WHERE id = :id")
+    suspend fun updateAudiobookPosition(id: Long, positionMs: Long)
+
     @Delete
     suspend fun deleteAudiobook(audiobook: AudiobookEntity)
 

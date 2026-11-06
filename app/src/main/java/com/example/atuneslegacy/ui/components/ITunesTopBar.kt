@@ -90,22 +90,11 @@ fun ITunesTopBar(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            // Transport Controls (Prev, Play, Next, Volume)
+            // Transport Controls (Play, Volume)
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(2.dp)
             ) {
-                IconButton(
-                    onClick = { mediaPlayerManager?.playPrevious() },
-                    modifier = Modifier.size(32.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.FastRewind,
-                        contentDescription = "Previous",
-                        tint = Color(0xFF4A4E57),
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
                 IconButton(
                     onClick = { mediaPlayerManager?.togglePlayPause() },
                     modifier = Modifier
@@ -125,25 +114,7 @@ fun ITunesTopBar(
                         modifier = Modifier.size(20.dp)
                     )
                 }
-                IconButton(
-                    onClick = { mediaPlayerManager?.playNext() },
-                    modifier = Modifier.size(32.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.FastForward,
-                        contentDescription = "Next",
-                        tint = Color(0xFF4A4E57),
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
-                Icon(
-                    imageVector = Icons.Default.VolumeUp,
-                    contentDescription = "Volume",
-                    tint = Color(0xFF6B7280),
-                    modifier = Modifier
-                        .padding(start = 6.dp)
-                        .size(18.dp)
-                )
+
             }
 
             // Retro Glossy LCD Screen
